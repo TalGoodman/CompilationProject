@@ -9,9 +9,9 @@
 %option yylineno
 %%
 
-[0-9]+     { yylval.ival = atoi (yytext); return NUM; }
+[0-9]+     { yylval.ival = strtol (yytext, NULL, 10); return NUM; }
 
-[0-9]+'.'[0-9]* { yylval.fval = atoi (yytext); return NUM; }
+[0-9]+'.'[0-9]* { yylval.fval = strtod (yytext, NULL); return NUM; }
 
 [a-zA-Z][a-zA-Z0-9]* { yylval.sval = strdup(yytext); return ID; }
 

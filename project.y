@@ -9,7 +9,8 @@ void yyerror (const char *s);
 
 enum SymbolType {
   INTEGER,
-  FLOAT
+  FLOAT,
+  STRING
 };
 
 struct Symbol {
@@ -17,6 +18,7 @@ struct Symbol {
   union {
     int int_value;
     float float_value;
+    char* string_value;
   } value;
 };
 
@@ -38,6 +40,16 @@ int symbol_count = 0;
    double fval;
    char* sval;
 }
+
+//structs for semantic values of non terminals
+struct Factor {
+  int type;
+  union {
+    int ival;
+    double fval;
+    char *sval;
+  } value;
+};
 
 %token <reserved_word> BREAK CASE DEFAULT ELSE FLOAT IF INPUT INT OUTPUT SWITCH WHILE
 
@@ -82,6 +94,7 @@ int symbol_count = 0;
 %left AND
 %left OR
 
+/*
 %nterm program
 %nterm declarations
 %nterm declaration
@@ -104,6 +117,9 @@ int symbol_count = 0;
 %nterm expression
 %nterm term
 %nterm factor
+*/
+
+%type <struct Factor> factor
 
  
 %define parse.error verbose
@@ -193,9 +209,27 @@ factor:		'(' expression ')'
 
 factor:		CAST '(' expression ')'
 
-factor:		ID
+factor:		ID {
+  $$.type = STRING;
+  $$.value.sval = $1;
+}
 
-factor:		NUM
+factor:		NUM {
+    if (typeof($1) == typeof(int)) {
+      /* NUM is an integer */
+      $$.type = INT;
+      $$.value.ival = $1;
+    } 
+    else {
+      if (typeof($1) == typeof(double)) {
+        /* NUM is a float */
+      $$.type = FLOAT;
+      $$.value.fval = fval;
+      } else {
+        /* NUM is neither an integer nor a float */
+      }
+    }
+  }
 
 
 NOT:	'!' { $$ = $1 }
