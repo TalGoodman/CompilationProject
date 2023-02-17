@@ -1,20 +1,21 @@
 %code {
 #include <stdio.h>
 #include <glib.h>
+#include "outputlist.h"
+
+static GHashTable *symbol_table = NULL;
+
+Line* buffer = NULL;
+GList *symbols = NULL;
+int symbol_count = 0;
+
+int current_line = 0;
+int temp_var_count = 0;
 
 
-extern int yylex (void);
-void yyerror (const char *s);
-}
-
-enum SymbolType {
-  INTEGER,
-  FLOAT,
-  STRING
-};
 
 struct Symbol {
-  enum SymbolType type;
+  int type;
   union {
     int int_value;
     float float_value;
@@ -22,77 +23,93 @@ struct Symbol {
   } value;
 };
 
-GHashTable *symbol_table = g_hash_table_new(g_str_hash, g_str_equal);
 
-void symbol_free(gpointer data) {
-  free(data);
+void symbol_free(gpointer key, gpointer value, gpointer userdata) {
+  free(value);
 }
 
-GList *symbols = NULL;
-int symbol_count = 0;
+int get_symbol_type(char* id){
+  gconstpointer id_gconstpointer = (gconstpointer)id;
+  gpointer symbol_id = g_hash_table_lookup(symbol_table, id_gconstpointer);
+  struct Symbol *symbol = (struct Symbol*)symbol_id;
+  int symbol_type = symbol->type;
+  return symbol_type;
+}
+
+}
 
 %code requires {
+  #include "outputlist.h"
 
+  enum {
+    INTEGER_TYPE = 1,
+    FLOAT_TYPE = 2
+  } TYPE;
+
+  typedef enum {
+    ADD_TYPE = 1,
+    SUB_TYPE = 2
+  } ADDOPTYPE;
+
+  typedef enum {
+    MUL_TYPE = 1,
+    DIV_TYPE = 2
+  } MULOPTYPE;
+
+  typedef enum {
+    LT_TYPE = 1,
+    GT_TYPE = 2,
+    LE_TYPE = 3,
+    GE_TYPE = 4,
+    NEQ_TYPE = 5,
+    EQ_TYPE = 6
+  } RELOPTYPE;
+
+  typedef enum {
+    CAST_INT_TYPE = 1,
+    CAST_FLOAT_TYPE = 2
+  } CASTTYPE;
+
+  extern int yylex (void);
+  void yyerror (const char *s);
 }
 
 %union {
    int ival;
    double fval;
    char* sval;
+   struct Factor {
+       int type;
+       char* ftext;
+       union {
+           int ival;
+           double fval;
+       } value;
+   } factor_struct;
+   struct Term {
+       int type;
+       char* ttext;
+       union {
+           int ival;
+           double fval;
+       } value;
+   } term_struct;
+   struct Expression {
+       int type;
+       char* etext;
+       union {
+           int ival;
+           double fval;
+       } value;
+   } expression_struct;
 }
 
-//structs for semantic values of non terminals
-struct Factor {
-  int type;
-  union {
-    int ival;
-    double fval;
-    char *sval;
-  } value;
-};
 
-%token <reserved_word> BREAK CASE DEFAULT ELSE FLOAT IF INPUT INT OUTPUT SWITCH WHILE
+%token BREAK CASE DEFAULT ELSE FLOAT IF INPUT INT OUTPUT SWITCH WHILE
 
-%token '(' /* character literal */
-%token ')' /* character literal */
-%token '{' /* character literal */
-%token '}' /* character literal */
-%token ',' /* character literal */
-%token ':' /* character literal */
-%token ';' /* character literal */
-%token '=' /* character literal */
+%token <sval> NUM
+%token <sval> ID
 
-%token <int> <double> NUM
-%token <char*> ID
-
-%token '<' '>' '<=' '>=' '!=' '=='
-%token <op> RELOP
-
-%token '+' '-'
-%token <op> ADDOP
-
-%token '*' '/'
-%token <op> MULOP
-
-%token '!'
-%token <op> NOT
-
-%token '||'
-%token <op> OR
-
-%token '&&'
-%token <op> AND
-
-%token 'static_cast<int>' 'static_cast<float>'
-%token <op> CAST
-
-
-%left MULOP
-%left ADDOP
-%left RELOP
-%left NOT
-%left AND
-%left OR
 
 /*
 %nterm program
@@ -119,42 +136,52 @@ struct Factor {
 %nterm factor
 */
 
-%type <struct Factor> factor
+%type <factor_struct> factor
+%type <term_struct> term
+%type <expression_struct> expression
+%type <ival> type
+%type <ival> ADDOP
+%type <ival> MULOP
+%type <ival> RELOP
+%type <ival> CAST
 
  
 %define parse.error verbose
 /* %error-verbose */
 
 %%
-program:	declarations stmt_block {
-	g_hash_table_foreach(symbol_table, symbol_free, NULL);
-    g_hash_table_remove_all(symbol_table);
+program:	declarations stmt_block
+
+declarations:	declarations declaration {
+  symbols = g_list_reverse(symbols);
 }
 
-declarations:	declarations declaration | epsilon
+declarations: ""
 
 declaration:	idlist ':' type ';' {
+  int type_val;
+  type_val = $3;
 	GList *list = symbols;
 	while (list != NULL) {
 		char *current = list->data;
 		struct Symbol *symbol = malloc(sizeof(struct Symbol));
-		symbol->type = $3;
+		symbol->type = type_val;
 		g_hash_table_insert(symbol_table, strdup(current), symbol);
 		list = g_list_next(list);
 	}
-    declaration_count++;
-    symbol_count = 0;
-	symbols = NULL;
-  }
+    //declaration_count++;
+    //symbol_count = 0;
+	//symbols = NULL;
+}
 
-type:	INT { $$ = INT }| FLOAT { $$ = FLOAT }
+type:	INT { $$ = INTEGER_TYPE; } | FLOAT { $$ = FLOAT_TYPE; }
 
 idlist:		idlist ',' ID {
-    symbols = g_list_append(symbols, strdup($3));
+    symbols = g_list_prepend(symbols, strdup($3));
   }
 
 idlist:		ID {
-    symbols = g_list_append(symbols, strdup($1));
+    symbols = g_list_prepend(symbols, strdup($1));
   }
 
 stmt:	assignment_stmt
@@ -175,7 +202,20 @@ stmt:	stmt_block
 
 assignment_stmt:	ID '=' expression ';'
 
-input_stmt:		INPUT '(' ID ')' ';'
+input_stmt:		INPUT '(' ID ')' ';' {
+    int symbol_type = get_symbol_type($3);
+    if(symbol_type == INTEGER_TYPE) {
+      char* line_string;
+      sprintf(line_string, "%s%s", "IINP ", $3);
+      insert_line(buffer, current_line, line_string);
+    }
+    else {
+      char* line_string;
+      sprintf(line_string, "%s%s", "RINP ", $3);
+      insert_line(buffer, current_line, line_string);
+    }
+    current_line++;
+}
 
 output_stmt:	OUTPUT '(' expression ')' ';'
 
@@ -198,55 +238,223 @@ boolexpr:	boolexpr OR boolterm | boolterm
 
 boolterm:	boolterm AND boolfactor | boolfactor
 
-boolfactor:		NOT '(' boolexpr ')' |
-					expression RELOP expression
+boolfactor:		NOT '(' boolexpr ')'
 
-expression:		expression ADDOP term | term
+boolfactor: expression RELOP expression
 
-term:	term MULOP factor | factor
+expression:		expression ADDOP term {
+  if($2 == ADD_TYPE) {
+    if(($1).type == FLOAT_TYPE && ($3).type == FLOAT_TYPE) {
+      $$.type = FLOAT_TYPE;
+      $$.value.fval = ($1).value.fval + ($3).value.fval;
+    }
+    else if(($1).type == FLOAT_TYPE && ($3).type == INTEGER_TYPE) {
+      $$.type = FLOAT_TYPE;
+      $$.value.fval = ($1).value.fval + ($3).value.ival;
+    }
+    else if(($1).type == INTEGER_TYPE && ($3).type == FLOAT_TYPE) {
+      $$.type = FLOAT_TYPE;
+      $$.value.fval = ($1).value.ival + ($3).value.fval;
+    }
+    else {
+      $$.type = INTEGER_TYPE;
+      $$.value.fval = ($1).value.ival + ($3).value.ival;
+    }
+  }
+  else {
+    if(($1).type == FLOAT_TYPE && ($3).type == FLOAT_TYPE) {
+      $$.type = FLOAT_TYPE;
+      $$.value.fval = ($1).value.fval - ($3).value.fval;
+    }
+    else if(($1).type == FLOAT_TYPE && ($3).type == INTEGER_TYPE) {
+      $$.type = FLOAT_TYPE;
+      $$.value.fval = ($1).value.fval - ($3).value.ival;
+    }
+    else if(($1).type == INTEGER_TYPE && ($3).type == FLOAT_TYPE) {
+      $$.type = FLOAT_TYPE;
+      $$.value.fval = ($1).value.ival - ($3).value.fval;
+    }
+    else {
+      $$.type = INTEGER_TYPE;
+      $$.value.fval = ($1).value.ival - ($3).value.ival;
+    }
+  }
+  sprintf($$.etext, "_t%d", temp_var_count);
+  temp_var_count++;
+}
 
-factor:		'(' expression ')'
+expression:   term {
+  if(($1).type == INTEGER_TYPE) {
+    $$.type = INTEGER_TYPE;
+    $$.value.ival = ($1).value.ival;
+  }
+  else if(($1).type == FLOAT_TYPE) {
+    $$.type = FLOAT_TYPE;
+    $$.value.fval = ($1).value.fval;
+  }
+  $$.etext = ($1).ttext;
+}
 
-factor:		CAST '(' expression ')'
+term:	term MULOP factor {
+  if($2 == MUL_TYPE) {
+    if(($1).type == FLOAT_TYPE && ($3).type == FLOAT_TYPE) {
+      $$.type = FLOAT_TYPE;
+      $$.value.fval = ($1).value.fval * ($3).value.fval;
+    }
+    else if(($1).type == FLOAT_TYPE && ($3).type == INTEGER_TYPE) {
+      $$.type = FLOAT_TYPE;
+      $$.value.fval = ($1).value.fval * ($3).value.ival;
+    }
+    else if(($1).type == INTEGER_TYPE && ($3).type == FLOAT_TYPE) {
+      $$.type = FLOAT_TYPE;
+      $$.value.fval = ($1).value.ival * ($3).value.fval;
+    }
+    else {
+      $$.type = INTEGER_TYPE;
+      $$.value.fval = ($1).value.ival * ($3).value.ival;
+    }
+  }
+  else {
+    if(($1).type == FLOAT_TYPE && ($3).type == FLOAT_TYPE) {
+      $$.type = FLOAT_TYPE;
+      $$.value.fval = ($1).value.fval / ($3).value.fval;
+    }
+    else if(($1).type == FLOAT_TYPE && ($3).type == INTEGER_TYPE) {
+      $$.type = FLOAT_TYPE;
+      $$.value.fval = ($1).value.fval / ($3).value.ival;
+    }
+    else if(($1).type == INTEGER_TYPE && ($3).type == FLOAT_TYPE) {
+      $$.type = FLOAT_TYPE;
+      $$.value.fval = ($1).value.ival / ($3).value.fval;
+    }
+    else {
+      $$.type = INTEGER_TYPE;
+      $$.value.fval = ($1).value.ival / ($3).value.ival;
+    }
+  }
+  sprintf($$.ttext, "_t%d", temp_var_count);
+  temp_var_count++;
+}
+
+term: factor {
+  if(($1).type == INTEGER_TYPE) {
+    $$.type = INTEGER_TYPE;
+    $$.value.ival = ($1).value.ival;
+  }
+  else if(($1).type == FLOAT_TYPE) {
+    $$.type = FLOAT_TYPE;
+    $$.value.fval = ($1).value.fval;
+  }
+  $$.ttext = ($1).ftext;
+}
+
+factor:		'(' expression ')' {
+  if(($2).type == INTEGER_TYPE) {
+    $$.type = INTEGER_TYPE;
+    $$.value.ival = ($2).value.ival;
+  }
+  else if(($2).type == FLOAT_TYPE) {
+    $$.type = FLOAT_TYPE;
+    $$.value.fval = ($2).value.fval;
+  }
+  //TODO: check this later
+  $$.ftext = ($1).etext;
+}
+
+factor:		CAST '(' expression ')' {
+  sprintf($$.ftext, "_t%d", temp_var_count);
+  temp_var_count++;
+  if($1 == CAST_INT_TYPE) {
+    $$.type = INTEGER_TYPE;
+    if(($3).type == INTEGER_TYPE) {
+      $$.value.ival = ($3).value.ival;
+    }
+    else {
+      $$.value.ival = (int)($3).value.fval;
+    }
+    char* line_string;
+    sprintf(line_string, "%s %s %s", "RTOI", $$.ftext, ($3).etext);
+    insert_line(buffer, current_line, line_string);
+  }
+  else {
+    $$.type = FLOAT_TYPE;
+    if(($3).type == FLOAT_TYPE) {
+      $$.value.fval = ($3).value.fval;
+    }
+    else {
+      $$.value.fval = (double)($3).value.ival;
+    }
+  }
+}
 
 factor:		ID {
-  $$.type = STRING;
-  $$.value.sval = $1;
+  struct Symbol *symbol = g_hash_table_lookup(symbol_table, $1);
+  if(symbol -> type == INTEGER_TYPE) {
+    $$.type = INTEGER_TYPE;
+    $$.value.ival = symbol -> value.int_value;
+  }
+  else if(symbol -> type == FLOAT_TYPE) {
+    $$.type = FLOAT_TYPE;
+    $$.value.fval = symbol -> value.float_value;
+  }
+  $$.ftext = $1;
 }
 
 factor:		NUM {
-    if (typeof($1) == typeof(int)) {
-      /* NUM is an integer */
-      $$.type = INT;
-      $$.value.ival = $1;
-    } 
-    else {
-      if (typeof($1) == typeof(double)) {
-        /* NUM is a float */
-      $$.type = FLOAT;
-      $$.value.fval = fval;
-      } else {
-        /* NUM is neither an integer nor a float */
-      }
+  char* endptr;
+  long int_value = strtol($1, &endptr, 10);
+  if (*endptr == '\0') {
+    /* NUM is an integer */
+    $$.type = INTEGER_TYPE;
+    $$.value.ival = int_value;
+  } else {
+    double float_value = strtod($1, &endptr);
+    if (*endptr == '\0') {
+      /* NUM is a float */
+      $$.type = FLOAT_TYPE;
+      $$.value.fval = float_value;
+    } else {
+      /* NUM is not a valid integer or float */
+      yyerror("Invalid number");
     }
   }
+  $$.ftext = $1;
+}
 
 
-NOT:	'!' { $$ = $1 }
+/*
+factor:		NUM {
+  if (typeof($1) == typeof(int)) {
+    $$.type = INT;
+    $$.value.ival = $1;
+  } 
+  else {
+    if (typeof($1) == typeof(double)) {
+    $$.type = FLOAT;
+    $$.value.fval = fval;
+    } else {
+    }
+  }
+}*/
 
-AND:	'&&' { $$ = $1 }
 
-OR:		'||' { $$ = $1 }
 
-MULOP:	'*' { $$ = $1 } | '/' { $$ = $1 }
+NOT:	'!'
 
-ADDOP:	'+' { $$ = $1 } | '-' { $$ = $1 }
+AND:	"&&"
 
-RELOP:	'<' { $$ = $1 } | '>' { $$ = $1 } | '<=' { $$ = $1 } | '>=' { $$ = $1 }
+OR:		"||"
 
-RELOP:	'!=' { $$ = $1 } | '==' { $$ = $1 }
+MULOP:	'*' { $$ = MUL_TYPE; } | '/' { $$ = DIV_TYPE; }
 
-CAST:	'static_cast<int>' { $$ = $1 } | 'static_cast<float>' { $$ = $1 }
+ADDOP:	'+' { $$ = ADD_TYPE; } | '-' { $$ = SUB_TYPE; }
+
+RELOP:	'<' { $$ = LT_TYPE; } | '>' { $$ = GT_TYPE; } | "<=" { $$ = LE_TYPE; } | ">=" { $$ = GE_TYPE; }
+
+RELOP:	"!=" { $$ = NEQ_TYPE; } | "==" { $$ = EQ_TYPE; }
+
+CAST:	"static_cast<int>" { $$ = CAST_INT_TYPE; } | "static_cast<float>" { $$ = CAST_FLOAT_TYPE; }
+
 
 		   
 %%
@@ -262,6 +470,11 @@ int main (int argc, char **argv)
        fprintf (stderr, "failed to open %s\n", argv[1]);
 	   return 2;
   }
+
+  GList* labels_list = NULL;
+  symbol_table = g_hash_table_new(g_str_hash, g_str_equal);
+  buffer = create_buffer();
+
 #if 0
 
 #ifdef YYDEBUG
@@ -269,6 +482,9 @@ int main (int argc, char **argv)
 #endif
 #endif
   yyparse ();
+
+  g_hash_table_foreach(symbol_table, symbol_free, NULL);
+  g_hash_table_destroy(symbol_table);
   
   fclose (yyin);
   return 0;
@@ -281,8 +497,6 @@ void yyerror (const char *s)
   
   fprintf (stderr, "error. line %d:%s\n", yylineno,s);
 }
-
-
 
 
 
