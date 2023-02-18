@@ -243,7 +243,10 @@ boolfactor:		NOT '(' boolexpr ')'
 boolfactor: expression RELOP expression
 
 expression:		expression ADDOP term {
+  sprintf($$.etext, "_t%d", temp_var_count);
+  temp_var_count++;
   if($2 == ADD_TYPE) {
+    //determine type
     if(($1).type == FLOAT_TYPE && ($3).type == FLOAT_TYPE) {
       $$.type = FLOAT_TYPE;
       $$.value.fval = ($1).value.fval + ($3).value.fval;
@@ -260,8 +263,22 @@ expression:		expression ADDOP term {
       $$.type = INTEGER_TYPE;
       $$.value.fval = ($1).value.ival + ($3).value.ival;
     }
+    //generate output
+    //case IADD
+    if(($1).type == INTEGER_TYPE && ($3).type == INTEGER_TYPE) {
+      char* line_string;
+      sprintf(line_string, "%s %s %s %s", "IADD", $$.ttext, ($1).ttext, ($3).ftext);
+      insert_line(buffer, current_line, line_string);
+    }
+    //case RADD
+    else {
+      char* line_string;
+      sprintf(line_string, "%s %s %s", "RADD", $$.ttext, ($1).ttext, ($3).ftext);
+      insert_line(buffer, current_line, line_string);
+    }
   }
   else {
+    //determine type
     if(($1).type == FLOAT_TYPE && ($3).type == FLOAT_TYPE) {
       $$.type = FLOAT_TYPE;
       $$.value.fval = ($1).value.fval - ($3).value.fval;
@@ -278,12 +295,24 @@ expression:		expression ADDOP term {
       $$.type = INTEGER_TYPE;
       $$.value.fval = ($1).value.ival - ($3).value.ival;
     }
+    //generate output
+    //case ISUB
+    if(($1).type == INTEGER_TYPE && ($3).type == INTEGER_TYPE) {
+      char* line_string;
+      sprintf(line_string, "%s %s %s %s", "ISUB", $$.ttext, ($1).ttext, ($3).ftext);
+      insert_line(buffer, current_line, line_string);
+    }
+    //case RSUB
+    else {
+      char* line_string;
+      sprintf(line_string, "%s %s %s", "RSUB", $$.ttext, ($1).ttext, ($3).ftext);
+      insert_line(buffer, current_line, line_string);
+    }
   }
-  sprintf($$.etext, "_t%d", temp_var_count);
-  temp_var_count++;
 }
 
 expression:   term {
+  $$.etext = ($1).ttext;
   if(($1).type == INTEGER_TYPE) {
     $$.type = INTEGER_TYPE;
     $$.value.ival = ($1).value.ival;
@@ -292,11 +321,13 @@ expression:   term {
     $$.type = FLOAT_TYPE;
     $$.value.fval = ($1).value.fval;
   }
-  $$.etext = ($1).ttext;
 }
 
 term:	term MULOP factor {
+  sprintf($$.ttext, "_t%d", temp_var_count);
+  temp_var_count++;
   if($2 == MUL_TYPE) {
+    //determine type
     if(($1).type == FLOAT_TYPE && ($3).type == FLOAT_TYPE) {
       $$.type = FLOAT_TYPE;
       $$.value.fval = ($1).value.fval * ($3).value.fval;
@@ -313,8 +344,22 @@ term:	term MULOP factor {
       $$.type = INTEGER_TYPE;
       $$.value.fval = ($1).value.ival * ($3).value.ival;
     }
+    //generate output
+    //case IMLT
+    if(($1).type == INTEGER_TYPE && ($3).type == INTEGER_TYPE) {
+      char* line_string;
+      sprintf(line_string, "%s %s %s %s", "IMLT", $$.ttext, ($1).ttext, ($3).ftext);
+      insert_line(buffer, current_line, line_string);
+    }
+    //case RMLT
+    else {
+      char* line_string;
+      sprintf(line_string, "%s %s %s", "RMLT", $$.ttext, ($1).ttext, ($3).ftext);
+      insert_line(buffer, current_line, line_string);
+    }
   }
   else {
+    //determine type
     if(($1).type == FLOAT_TYPE && ($3).type == FLOAT_TYPE) {
       $$.type = FLOAT_TYPE;
       $$.value.fval = ($1).value.fval / ($3).value.fval;
@@ -331,12 +376,24 @@ term:	term MULOP factor {
       $$.type = INTEGER_TYPE;
       $$.value.fval = ($1).value.ival / ($3).value.ival;
     }
+    //generate output
+    //case IDIV
+    if(($1).type == INTEGER_TYPE && ($3).type == INTEGER_TYPE) {
+      char* line_string;
+      sprintf(line_string, "%s %s %s %s", "IDIV", $$.ttext, ($1).ttext, ($3).ftext);
+      insert_line(buffer, current_line, line_string);
+    }
+    //case RDIV
+    else {
+      char* line_string;
+      sprintf(line_string, "%s %s %s", "RDIV", $$.ttext, ($1).ttext, ($3).ftext);
+      insert_line(buffer, current_line, line_string);
+    }
   }
-  sprintf($$.ttext, "_t%d", temp_var_count);
-  temp_var_count++;
 }
 
 term: factor {
+  $$.ttext = ($1).ftext;
   if(($1).type == INTEGER_TYPE) {
     $$.type = INTEGER_TYPE;
     $$.value.ival = ($1).value.ival;
@@ -345,10 +402,11 @@ term: factor {
     $$.type = FLOAT_TYPE;
     $$.value.fval = ($1).value.fval;
   }
-  $$.ttext = ($1).ftext;
 }
 
 factor:		'(' expression ')' {
+  //TODO: check this later
+  $$.ftext = ($1).etext;
   if(($2).type == INTEGER_TYPE) {
     $$.type = INTEGER_TYPE;
     $$.value.ival = ($2).value.ival;
@@ -357,8 +415,6 @@ factor:		'(' expression ')' {
     $$.type = FLOAT_TYPE;
     $$.value.fval = ($2).value.fval;
   }
-  //TODO: check this later
-  $$.ftext = ($1).etext;
 }
 
 factor:		CAST '(' expression ')' {
