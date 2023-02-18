@@ -6,22 +6,22 @@
 #include <stdio.h>
 
 typedef GList GListLine;
-typedef GList GListElem;
-typedef GListElem* Line;
+typedef GList GListElement;
+typedef GListElement* Line;
 typedef int Label;
 
 typedef struct {
-    enum { CHAR, LABEL } type;
+    enum { STRING, LABEL } type;
     union {
-        char* c;
-        Label* l;
+        char* s;
+        Label l;
     } data;
-} Elem;
+} Element;
 
 
 
 Line* create_buffer();
-void insert_elem(Line* buffer, int line, int col, Elem e);
+void insert_element(Line* buffer, int line, int col, Element e);
 void insert_line(Line* buffer, int line, const char* text);
 void delete_elem(Line* buffer, int line, int col);
 void delete_line(Line* buffer, int line);

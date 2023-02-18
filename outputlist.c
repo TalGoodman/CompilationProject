@@ -9,10 +9,10 @@ Line* create_buffer() {
 }
 
 // Define a function to insert an element into the buffer
-void insert_elem(Line* buffer, int line, int col, Elem e) {
+void insert_element(Line* buffer, int line, int col, Element e) {
     GListLine* line_list = g_list_nth(*buffer, line);
-    GListElem* elem_list = g_list_nth(line_list->data, col);
-    Elem* elem = g_new(Elem, 1);
+    GListElement* elem_list = g_list_nth(line_list->data, col);
+    Element* elem = g_new(Element, 1);
     *elem = e;
     elem_list->data = elem;
 }
@@ -20,21 +20,32 @@ void insert_elem(Line* buffer, int line, int col, Elem e) {
 // Define a function to insert a line into the buffer
 void insert_line(Line* buffer, int line, const char* text) {
     GListLine* line_list = g_list_nth(*buffer, line);
-    GListElem* elem_list = NULL;
+    GListElement* elem_list = NULL;
     for (int i = 0; i < strlen(text); i++) {
-        Elem* elem = g_new(Elem, 1);
-        elem->type = CHAR;
-        elem->data.c = g_new(char, 1);
-        *(elem->data.c) = text[i];
+        Element* elem = g_new(Element, 1);
+        elem->type = STRING;
+        elem->data.s = g_new(char, 1);
+        *(elem->data.s) = text[i];
         elem_list = g_list_append(elem_list, elem);
     }
     *buffer = g_list_insert(*buffer, elem_list, line);
 }
 
+void set_element(Line* buffer, int line, int col, Element e) {
+    GListLine* line_list = g_list_nth(*buffer, line);
+    GListElement* elem_list = g_list_nth(line_list->data, col);
+    if (elem_list->data != NULL) {
+        g_free(elem_list->data);
+    }
+    Element* elem = g_new(Element, 1);
+    *elem = e;
+    elem_list->data = elem;
+}
+
 // Define a function to delete an element from the buffer
 void delete_elem(Line* buffer, int line, int col) {
     GListLine* line_list = g_list_nth(*buffer, line);
-    GListElem* elem_list = g_list_nth(line_list->data, col);
+    GListElement* elem_list = g_list_nth(line_list->data, col);
     g_free(elem_list->data);
     line_list->data = g_list_delete_link(line_list->data, elem_list);
 }
@@ -42,12 +53,10 @@ void delete_elem(Line* buffer, int line, int col) {
 // Define a function to delete a line from the buffer
 void delete_line(Line* buffer, int line) {
     GListLine* line_list = g_list_nth(*buffer, line);
-    for (GListElem* elem_list = line_list->data; elem_list != NULL; elem_list = elem_list->next) {
-        Elem* elem = elem_list->data;
-        if (elem->type == CHAR) {
-            g_free(elem->data.c);
-        } else {
-            g_free(elem->data.l);
+    for (GListElement* elem_list = line_list->data; elem_list != NULL; elem_list = elem_list->next) {
+        Element* elem = elem_list->data;
+        if (elem->type == STRING) {
+            g_free(elem->data.s);
         }
         g_free(elem);
     }
@@ -57,15 +66,15 @@ void delete_line(Line* buffer, int line) {
 // Define a function to iterate over the buffer
 void iterate_buffer(Line* buffer) {
     for (GListLine* line_list = *buffer; line_list != NULL; line_list = line_list->next) {
-        for (GListElem* elem_list = line_list->data; elem_list != NULL; elem_list = elem_list->next) {
+        for (GListElement* elem_list = line_list->data; elem_list != NULL; elem_list = elem_list->next) {
             if (elem_list->data != NULL) {
-                Elem* elem = elem_list->data;
-                if (elem->type == CHAR) {
+                Element* elem = elem_list->data;
+                if (elem->type == STRING) {
                     // element is a character
-                    printf("Character: %c\n", *(elem->data.c));
+                    printf("Character: %c\n", *(elem->data.s));
                 } else {
                     // element is a Label
-                    printf("Label: %d\n", *(elem->data.l));
+                    printf("Label: %d\n", elem->data.l);
                 }
             }
         }
