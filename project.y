@@ -78,6 +78,11 @@ int get_symbol_type(char* id){
    int ival;
    double fval;
    char* sval;
+   struct TextType {
+    int type;
+    char* vtext;
+   } textype_struct;
+   //TODO: check if it's possible to delete the follow structs
    struct Factor {
        int type;
        char* ftext;
@@ -144,6 +149,9 @@ int get_symbol_type(char* id){
 %type <ival> MULOP
 %type <ival> RELOP
 %type <ival> CAST
+%type <textype_struct> boolfactor
+%type <textype_struct> boolterm
+%type <textype_struct> boolexpr
 
  
 %define parse.error verbose
@@ -234,13 +242,212 @@ stmt_block:		'{' stmtlist '}'
 
 stmtlist:	stmtlist stmt | ""
 
-boolexpr:	boolexpr OR boolterm | boolterm
+boolexpr:	boolexpr OR boolterm
 
-boolterm:	boolterm AND boolfactor | boolfactor
+boolexpr: boolterm
 
-boolfactor:		NOT '(' boolexpr ')'
+boolterm:	boolterm AND boolfactor
 
-boolfactor: expression RELOP expression
+boolterm: boolfactor {
+
+}
+
+boolfactor:		NOT '(' boolexpr ')' {
+  $$.type = INTEGER_TYPE;
+  sprintf($$.vtext, "_t%d", temp_var_count);
+  temp_var_count++;
+  char* line_string;
+  sprintf(line_string, "%s %s %s %s", "ILSS", $$.vtext, ($3).vtext, "1");
+  insert_line(buffer, current_line++, line_string);
+}
+
+boolfactor: expression RELOP expression {
+  $$.type = INTEGER_TYPE;
+  sprintf($$.vtext, "_t%d", temp_var_count);
+  temp_var_count++;
+  if(($1).type == INTEGER_TYPE && ($3).type == INTEGER_TYPE) {
+      switch (($2).ival) {
+        case LT_TYPE:
+            char* line_string;
+            sprintf(line_string, "%s %s %s %s", "ILSS", $$.vtext, ($1).etext, ($3).etext);
+            insert_line(buffer, current_line++, line_string);
+            break;
+        case GT_TYPE:
+            char* line_string;
+            sprintf(line_string, "%s %s %s %s", "IGRT", $$.vtext, ($1).etext, ($3).etext);
+            insert_line(buffer, current_line++, line_string);
+            break;
+        case LE_TYPE:
+            /*
+                this case adds 3 lines.
+                first checks lesser than condition
+                second checks equal condition
+                third calculates the sum of the results of the 2 preceding lines,
+                if the result is 0 then the lesser than or equal condition result is 0
+                else then the result of the lesser than or equal contidion is 1 or 2
+            */
+            char* temp1;
+            char* temp2;
+            sprintf(temp1, "_t%d", temp_var_count++);
+            sprintf(temp2, "_t%d", temp_var_count++);
+            char* line_string1;
+            sprintf(line_string1, "%s %s %s %s", "ILSS", temp1, ($1).etext, ($3).etext);
+            char* line_string2;
+            sprintf(line_string2, "%s %s %s %s", "IEQL", temp2, ($1).etext, ($3).etext);
+            char* line_string3;
+            sprintf(line_string3, "%s %s %s %s", "IADD", $$.vtext, temp1, temp2);
+            insert_line(buffer, current_line++, line_string1);
+            insert_line(buffer, current_line++, line_string2);
+            insert_line(buffer, current_line++, line_string3);
+            break;
+        case GE_TYPE:
+            /*
+                this case adds 3 lines.
+                first checks greater than condition
+                second checks equal condition
+                third calculates the sum of the results of the 2 preceding lines,
+                if the result is 0 then the greater than or equal condition result is 0
+                else then the result of the greater than or equal contidion is 1 or 2
+            */
+            char* temp1;
+            char* temp2;
+            sprintf(temp1, "_t%d", temp_var_count++);
+            sprintf(temp2, "_t%d", temp_var_count++);
+            char* line_string1;
+            sprintf(line_string1, "%s %s %s %s", "IGRT", temp1, ($1).etext, ($3).etext);
+            char* line_string2;
+            sprintf(line_string2, "%s %s %s %s", "IEQL", temp2, ($1).etext, ($3).etext);
+            char* line_string3;
+            sprintf(line_string3, "%s %s %s %s", "IADD", $$.vtext, temp1, temp2);
+            insert_line(buffer, current_line++, line_string1);
+            insert_line(buffer, current_line++, line_string2);
+            insert_line(buffer, current_line++, line_string3);
+            break;
+        case NEQ_TYPE:
+            char* line_string;
+            sprintf(line_string, "%s %s %s %s", "INQL", $$.vtext, ($1).etext, ($3).etext);
+            insert_line(buffer, current_line++, line_string);
+            break;
+        case EQ_TYPE:
+            char* line_string;
+            sprintf(line_string, "%s %s %s %s", "IEQL", $$.vtext, ($1).etext, ($3).etext);
+            insert_line(buffer, current_line++, line_string);
+            break;
+        default:
+            //TODO: print error properly
+            printf("Invalid RELOP");
+      }
+    }
+    else {
+      double op1;
+      double op2;
+      if(($1).type == FLOAT_TYPE && ($3).type == FLOAT_TYPE) {
+        op1 =($1).value.fval;
+        op2 = ($3).value.fval;
+      }
+      else if(($1).type == FLOAT_TYPE && ($3).type == INTEGER_TYPE) {
+        op1 =($1).value.fval;
+        op2 = (double)(($3).value.ival);
+      }
+      else if(($1).type == INTEGER_TYPE && ($3).type == FLOAT_TYPE) {
+        op1 = (double)(($1).value.ival);
+        op2 = ($3).value.fval;
+      }
+      //check if the expression are not variables
+      char* string_op1;
+      char* string_op2;
+      char first_char1 = ($1).etext[0];
+      char first_char2 = ($3).etext[0];
+      if(first_char1 == '0' || first_char1 == '1' || first_char1 == '2' || first_char1 == '3'
+          || first_char1 == '4' || first_char1 == '5' || first_char1 == '6'
+          || first_char1 == '7' || first_char1 == '8' || first_char1 == '9') {
+            sprintf(string_op1, "%.3f", op1);
+          }
+      else {
+        string_op1 = ($1).etext;
+      }
+      if(first_char2 == '0' || first_char2 == '1' || first_char2 == '2' || first_char2 == '3'
+          || first_char2 == '4' || first_char2 == '5' || first_char2 == '6'
+          || first_char2 == '7' || first_char2 == '8' || first_char2 == '9') {
+            sprintf(string_op2, "%.3f", op2);
+          }
+      else {
+        string_op2 = ($3).etext;
+      }
+      switch (($2).ival) {
+        case LT_TYPE:
+            char* line_string;
+            sprintf(line_string, "%s %s %s %s", "ILSS", $$.vtext, string_op1, string_op2);
+            insert_line(buffer, current_line++, line_string);
+            break;
+        case GT_TYPE:
+            char* line_string;
+            sprintf(line_string, "%s %s %s %s", "IGRT", $$.vtext, string_op1, string_op2);
+            insert_line(buffer, current_line++, line_string);
+            break;
+        case LE_TYPE:
+            /*
+                this case adds 3 lines.
+                first checks lesser than condition
+                second checks equal condition
+                third calculates the sum of the results of the 2 preceding lines,
+                if the result is 0 then the lesser than or equal condition result is 0
+                else then the result of the lesser than or equal contidion is 1 or 2
+            */
+            char* temp1;
+            char* temp2;
+            sprintf(temp1, "_t%d", temp_var_count++);
+            sprintf(temp2, "_t%d", temp_var_count++);
+            char* line_string1;
+            sprintf(line_string1, "%s %s %s %s", "ILSS", temp1, string_op1, string_op2);
+            char* line_string2;
+            sprintf(line_string2, "%s %s %s %s", "IEQL", temp2, string_op1, string_op2);
+            char* line_string3;
+            sprintf(line_string3, "%s %s %s %s", "IADD", $$.vtext, temp1, temp2);
+            insert_line(buffer, current_line++, line_string1);
+            insert_line(buffer, current_line++, line_string2);
+            insert_line(buffer, current_line++, line_string3);
+            break;
+        case GE_TYPE:
+            /*
+                this case adds 3 lines.
+                first checks greater than condition
+                second checks equal condition
+                third calculates the sum of the results of the 2 preceding lines,
+                if the result is 0 then the greater than or equal condition result is 0
+                else then the result of the greater than or equal contidion is 1 or 2
+            */
+            char* temp1;
+            char* temp2;
+            sprintf(temp1, "_t%d", temp_var_count++);
+            sprintf(temp2, "_t%d", temp_var_count++);
+            char* line_string1;
+            sprintf(line_string1, "%s %s %s %s", "IGRT", temp1, string_op1, string_op2);
+            char* line_string2;
+            sprintf(line_string2, "%s %s %s %s", "IEQL", temp2, string_op1, string_op2);
+            char* line_string3;
+            sprintf(line_string3, "%s %s %s %s", "IADD", $$.vtext, temp1, temp2);
+            insert_line(buffer, current_line++, line_string1);
+            insert_line(buffer, current_line++, line_string2);
+            insert_line(buffer, current_line++, line_string3);
+            break;
+        case NEQ_TYPE:
+            char* line_string;
+            sprintf(line_string, "%s %s %s %s", "INQL", $$.vtext, string_op1, string_op2);
+            insert_line(buffer, current_line++, line_string);
+            break;
+        case EQ_TYPE:
+            char* line_string;
+            sprintf(line_string, "%s %s %s %s", "IEQL", $$.vtext, string_op1, string_op2);
+            insert_line(buffer, current_line++, line_string);
+            break;
+        default:
+            //TODO: print error properly
+            printf("Invalid RELOP");
+      }
+    }
+  }
+
 
 expression:		expression ADDOP term {
   sprintf($$.etext, "_t%d", temp_var_count);
@@ -267,14 +474,14 @@ expression:		expression ADDOP term {
     //case IADD
     if(($1).type == INTEGER_TYPE && ($3).type == INTEGER_TYPE) {
       char* line_string;
-      sprintf(line_string, "%s %s %s %s", "IADD", $$.ttext, ($1).ttext, ($3).ftext);
-      insert_line(buffer, current_line, line_string);
+      sprintf(line_string, "%s %s %s %s", "IADD", $$.etext, ($1).etext, ($3).ttext);
+      insert_line(buffer, current_line++, line_string);
     }
     //case RADD
     else {
       char* line_string;
-      sprintf(line_string, "%s %s %s", "RADD", $$.ttext, ($1).ttext, ($3).ftext);
-      insert_line(buffer, current_line, line_string);
+      sprintf(line_string, "%s %s %s", "RADD", $$.etext, ($1).etext, ($3).ttext);
+      insert_line(buffer, current_line++, line_string);
     }
   }
   else {
@@ -299,14 +506,14 @@ expression:		expression ADDOP term {
     //case ISUB
     if(($1).type == INTEGER_TYPE && ($3).type == INTEGER_TYPE) {
       char* line_string;
-      sprintf(line_string, "%s %s %s %s", "ISUB", $$.ttext, ($1).ttext, ($3).ftext);
-      insert_line(buffer, current_line, line_string);
+      sprintf(line_string, "%s %s %s %s", "ISUB", $$.etext, ($1).etext, ($3).ttext);
+      insert_line(buffer, current_line++, line_string);
     }
     //case RSUB
     else {
       char* line_string;
-      sprintf(line_string, "%s %s %s", "RSUB", $$.ttext, ($1).ttext, ($3).ftext);
-      insert_line(buffer, current_line, line_string);
+      sprintf(line_string, "%s %s %s", "RSUB", $$.etext, ($1).etext, ($3).ttext);
+      insert_line(buffer, current_line++, line_string);
     }
   }
 }
@@ -349,13 +556,13 @@ term:	term MULOP factor {
     if(($1).type == INTEGER_TYPE && ($3).type == INTEGER_TYPE) {
       char* line_string;
       sprintf(line_string, "%s %s %s %s", "IMLT", $$.ttext, ($1).ttext, ($3).ftext);
-      insert_line(buffer, current_line, line_string);
+      insert_line(buffer, current_line++, line_string);
     }
     //case RMLT
     else {
       char* line_string;
       sprintf(line_string, "%s %s %s", "RMLT", $$.ttext, ($1).ttext, ($3).ftext);
-      insert_line(buffer, current_line, line_string);
+      insert_line(buffer, current_line++, line_string);
     }
   }
   else {
@@ -381,13 +588,13 @@ term:	term MULOP factor {
     if(($1).type == INTEGER_TYPE && ($3).type == INTEGER_TYPE) {
       char* line_string;
       sprintf(line_string, "%s %s %s %s", "IDIV", $$.ttext, ($1).ttext, ($3).ftext);
-      insert_line(buffer, current_line, line_string);
+      insert_line(buffer, current_line++, line_string);
     }
     //case RDIV
     else {
       char* line_string;
       sprintf(line_string, "%s %s %s", "RDIV", $$.ttext, ($1).ttext, ($3).ftext);
-      insert_line(buffer, current_line, line_string);
+      insert_line(buffer, current_line++, line_string);
     }
   }
 }
@@ -430,7 +637,7 @@ factor:		CAST '(' expression ')' {
     }
     char* line_string;
     sprintf(line_string, "%s %s %s", "RTOI", $$.ftext, ($3).etext);
-    insert_line(buffer, current_line, line_string);
+    insert_line(buffer, current_line++, line_string);
   }
   else {
     $$.type = FLOAT_TYPE;
