@@ -23,6 +23,7 @@ typedef struct {
 Line* create_buffer();
 void insert_element(Line* buffer, int line, int col, Element e);
 void insert_line(Line* buffer, int line, const char* text);
+void set_element(Line* buffer, int line, int col, Element e);
 void delete_elem(Line* buffer, int line, int col);
 void delete_line(Line* buffer, int line);
 void iterate_buffer(Line* buffer);

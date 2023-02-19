@@ -30,6 +30,16 @@ void symbol_free(gpointer key, gpointer value, gpointer userdata) {
   free(value);
 }
 
+void fix_break_lines(gpointer data, gpointer user_data) {
+  int current_line = GPOINTER_TO_INT(user_data);
+  int break_line = GPOINTER_TO_INT(data);
+
+  Element e;
+  e.type = LABEL;
+  e.data.l = current_line;
+  set_element(buffer, break_line, 1, e);
+}
+
 int get_symbol_type(char* id){
   gconstpointer id_gconstpointer = (gconstpointer)id;
   gpointer symbol_id = g_hash_table_lookup(symbol_table, id_gconstpointer);
@@ -84,11 +94,9 @@ int get_symbol_type(char* id){
     int type;
     char* vtext;
    } textype_struct;
-
-   struct IfStmt {
-    int jmpz_line;
-    int jump_line;
-   } ifstmt_struct;
+   struct Stmt {
+    GList* break_lines_list;
+   } stmt_struct;
    //TODO: check if it's possible to delete the follow structs
    struct Factor {
        int type;
@@ -114,6 +122,10 @@ int get_symbol_type(char* id){
            double fval;
        } value;
    } expression_struct;
+   struct CaseList{
+    expression_struct exprstruct;
+    GList* break_lines_list;
+   } caselist_struct;
 }
 
 
@@ -156,7 +168,12 @@ int get_symbol_type(char* id){
 %type <ival> MULOP
 %type <ival> RELOP
 %type <ival> CAST
-%type <ifstmt_struct> stmt
+%type <ival> IF
+%type <ival> ELSE
+%type <ival> WHILE
+%type <ival> CASE
+%type <caselist_struct> caselist
+%type <stmt_struct> stmt assignment_stmt input_stmt output_stmt if_stmt while_stmt switch_stmt break_stmt stmt_block stmt_list
 %type <sval> boolfactor
 %type <sval> boolterm
 %type <sval> boolexpr
@@ -203,20 +220,44 @@ idlist:		ID {
   }
 
 stmt:	assignment_stmt
+{
+  $$.break_lines_list = NULL;
+}
 
 stmt:	input_stmt
+{
+  $$.break_lines_list = NULL;
+}
 
 stmt:	output_stmt
+{
+  $$.break_lines_list = NULL;
+}
 
 stmt:	if_stmt
+{
+  $$.break_lines_list = g_list_copy(($1).break_lines_list);
+}
 
 stmt:	while_stmt
+{
+  $$.break_lines_list = g_list_copy(($1).break_lines_list);
+}
 
 stmt:	switch_stmt
+{
+  $$.break_lines_list = g_list_copy(($1).break_lines_list);
+}
 
 stmt:	break_stmt
+{
+  $$.break_lines_list = g_list_copy(($1).break_lines_list);
+}
 
 stmt:	stmt_block
+{
+  $$.break_lines_list = g_list_copy(($1).break_lines_list);
+}
 
 assignment_stmt:	ID '=' expression ';'
 
@@ -252,7 +293,7 @@ if_stmt:	IF '(' boolexpr ')'
   insert_element(buffer, current_line, 0, e1);
   insert_element(buffer, current_line, 1, e2);
   insert_element(buffer, current_line, 2, e3);
-  $$.jmpz_line = current_line;
+  $1 = current_line;
   current_line++;
 }
 stmt ELSE
@@ -266,34 +307,150 @@ stmt ELSE
   label_count++;
   insert_element(buffer, current_line, 0, e1);
   insert_element(buffer, current_line, 1, e2);
-  $$.jump_line = current_line;
+  $7 = current_line;
   current_line++;
 
   Element e3;
   e3.type = LABEL;
   e3.data.l = current_line;
-  set_element(buffer, $$.jmpz_line, 1, e3);
+  set_element(buffer, $1, 1, e3);
 }
 stmt
 {
   Element e;
   e.type = LABEL;
   e.data.l = current_line;
-  set_element(buffer, $$.jump_line, 1, e);
+  set_element(buffer, $7, 1, e);
 }
 
-while_stmt:		WHILE '(' boolexpr ')' stmt
+while_stmt:		WHILE '(' boolexpr ')'
+{
+  Element e1;
+  Element e2;
+  Element e3;
+  e1.type = STRING;
+  e2.type = LABEL;
+  e3.type = STRING;
+  sprintf(e1.data.s, "%s ", "JMPZ");
+  e2.data.l = label_count;
+  label_count++;
+  sprintf(e3.data.s, " %s", $3);
+  insert_element(buffer, current_line, 0, e1);
+  insert_element(buffer, current_line, 1, e2);
+  insert_element(buffer, current_line, 2, e3);
+  $1 = current_line;
+  current_line++;
+}
+stmt
+{
+  char* line_string;
+  sprintf(line_string, "%s %d", "JUMP", $1);
+  insert_line(buffer, current_line, line_string);
+  current_line++;
 
-switch_stmt:	SWITCH '(' expression ')' '{' caselist
-							DEFAULT ':' stmtlist '}'
+  Element e;
+  e.type = LABEL;
+  e.data.l = current_line;
+  set_element(buffer, $1, 1, e);
 
-caselist:	caselist CASE NUM ':' stmtlist | ""
+  g_list_foreach(($6).break_lines_list, fix_break_lines, GINT_TO_POINTER(current_line));
+  g_list_free(($6).break_lines_list);
+  $$.break_lines_list = NULL;
+}
+
+switch_stmt:	SWITCH '(' expression ')' '{' 
+{
+  ($7).exprstruct.type = ($3).type;
+  ($7).exprstruct.etext = ($3).etext;
+}
+caselist
+DEFAULT ':' stmtlist '}' 
+{
+  g_list_foreach(($7).break_lines_list, fix_break_lines, GINT_TO_POINTER(current_line));
+  g_list_free(($7).break_lines_list);
+  $$.break_lines_list = NULL;
+}
+
+caselist:	caselist CASE NUM ':'
+{
+  char* temp_var_text;
+  sprintftemp_var_text "_t%d", temp_var_count);
+  temp_var_count++;
+  if($$.exprstruct.type == INTEGER_TYPE) {
+    char* line_string;
+    sprintf(line_string, "%s %s %s %s", "IEQL", temp_var_text, $$.exprstruct.etext, ($3).sval);
+    insert_line(buffer, current_line++, line_string);
+  }
+  else if($$.exprstruct.type == FLOAT_TYPE) {
+    char* line_string;
+    sprintf(line_string, "%s %s %s %s", "REQL", temp_var_text, $$.exprstruct.etext, ($3).sval);
+    insert_line(buffer, current_line++, line_string);
+  }
+
+  Element e1;
+  Element e2;
+  Element e3;
+  e1.type = STRING;
+  e2.type = LABEL;
+  e3.type = STRING;
+  sprintf(e1.data.s, "%s ", "JMPZ");
+  e2.data.l = label_count;
+  label_count++;
+  sprintf(e3.data.s, " %s", temp_var_text);
+  insert_element(buffer, current_line, 0, e1);
+  insert_element(buffer, current_line, 1, e2);
+  insert_element(buffer, current_line, 2, e3);
+  $2 = current_line;
+  current_line++;
+}
+
+stmtlist
+
+{
+  Element e;
+  e.type = LABEL;
+  e.data.l = current_line;
+  set_element(buffer, $2, 1, e);
+
+  $$.break_lines_list = g_list_concat(($1).break_lines_list, ($6).break_lines_list);
+}
+
+caselist: ""
+{
+  $$.break_lines_list = NULL;
+}
 
 break_stmt:		BREAK ';'
+{
+  Element e1;
+  Element e2;
+  e1.type = STRING;
+  e2.type = LABEL;
+  sprintf(e1.data.s, "%s ", "JUMP");
+  e2.data.l = label_count;
+  label_count++;
+  insert_element(buffer, current_line, 0, e1);
+  insert_element(buffer, current_line, 1, e2);
+  int* current_line_p = (int*) malloc(sizeof(int));
+  *current_line_p = current_line;
+  $$.break_lines_list = g_list_prepend(GINT_TO_POINTER(*current_line_p));
+  current_line++;
+}
 
 stmt_block:		'{' stmtlist '}'
+{
+  $$.break_lines_list = g_list_copy(($2).break_lines_list);
+}
 
-stmtlist:	stmtlist stmt | ""
+stmtlist:	stmtlist stmt
+{
+  $$.break_lines_list = g_list_concat(($1).break_lines_list, ($2).break_lines_list);
+}
+
+stmtlist: ""
+{
+  $$.break_lines_list = NULL;
+}
 
 boolexpr:	boolexpr OR boolterm {
   sprintf($$, "_t%d", temp_var_count);
