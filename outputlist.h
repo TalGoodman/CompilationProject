@@ -26,6 +26,7 @@ void insert_line(Line* buffer, int line, const char* text);
 void set_element(Line* buffer, int line, int col, Element e);
 void delete_elem(Line* buffer, int line, int col);
 void delete_line(Line* buffer, int line);
-void iterate_buffer(Line* buffer);
+void delete_buffer(Line* buffer);
+void create_qud_file(Line* buffer, char* file_name);
 
 #endif /* BUFFER_H */

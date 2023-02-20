@@ -14,6 +14,10 @@ int current_line = 0;
 int temp_var_count = 0;
 int label_count = 0;
 
+int error_exists = 0;
+
+char* input_file_name = NULL;
+
 
 
 struct Symbol {
@@ -123,8 +127,9 @@ int get_symbol_type(char* id){
        } value;
    } expression_struct;
    struct CaseList{
-    expression_struct exprstruct;
-    GList* break_lines_list;
+       int type;
+       char* cltext;
+       GList* break_lines_list;
    } caselist_struct;
 }
 
@@ -172,11 +177,12 @@ int get_symbol_type(char* id){
 %type <ival> ELSE
 %type <ival> WHILE
 %type <ival> CASE
-%type <caselist_struct> caselist
-%type <stmt_struct> stmt assignment_stmt input_stmt output_stmt if_stmt while_stmt switch_stmt break_stmt stmt_block stmt_list
+%type <stmt_struct> stmt assignment_stmt input_stmt output_stmt if_stmt while_stmt switch_stmt break_stmt stmt_block stmtlist
 %type <sval> boolfactor
 %type <sval> boolterm
 %type <sval> boolexpr
+
+%nterm <caselist_struct> caselist
 
  
 %define parse.error verbose
@@ -185,6 +191,13 @@ int get_symbol_type(char* id){
 %%
 program:	declarations stmt_block {
   labels_list = g_list_reverse(labels_list);
+  char* line_string;
+  sprintf(line_string, "%s", "HALT");
+  insert_line(buffer, current_line++, line_string);
+
+  if(error_exists == 0){
+    create_qud_file(buffer, input_file_name);
+  }
 }
 
 declarations:	declarations declaration {
@@ -259,7 +272,41 @@ stmt:	stmt_block
   $$.break_lines_list = g_list_copy(($1).break_lines_list);
 }
 
-assignment_stmt:	ID '=' expression ';'
+assignment_stmt:	ID '=' expression ';' 
+{
+  struct Symbol *symbol = g_hash_table_lookup(symbol_table, $1);
+  int id_type;
+  char* endptr;
+  long expression_int_value = strtol(($3).etext, &endptr, 10);
+  double expression_double_value = (double)expression_int_value;
+  if(symbol -> type == INTEGER_TYPE) {
+    id_type = INTEGER_TYPE;
+  }
+  else if(symbol -> type == FLOAT_TYPE) {
+    id_type = FLOAT_TYPE;
+  }
+  //TODO: print errors
+  if(id_type == FLOAT_TYPE && ($3).type == FLOAT_TYPE) {
+      char* line_string;
+      sprintf(line_string, "%s %s %s", "RASN", $1, ($3).etext);
+      insert_line(buffer, current_line++, line_string);
+  }
+  else if(id_type == FLOAT_TYPE && ($3).type == INTEGER_TYPE) {
+      char* line_string;
+      sprintf(line_string, "%s %s %.3f", "RASN", $1, expression_double_value);
+      insert_line(buffer, current_line++, line_string);
+  }
+  else if(id_type == INTEGER_TYPE && ($3).type == FLOAT_TYPE) {
+    //error
+    error_exists = 1;
+    //print error
+  }
+  else {
+      char* line_string;
+      sprintf(line_string, "%s %s %s", "IASN", $1, ($3).etext);
+      insert_line(buffer, current_line++, line_string);
+  }
+}
 
 input_stmt:		INPUT '(' ID ')' ';' {
     int symbol_type = get_symbol_type($3);
@@ -276,7 +323,19 @@ input_stmt:		INPUT '(' ID ')' ';' {
     current_line++;
 }
 
-output_stmt:	OUTPUT '(' expression ')' ';'
+output_stmt:	OUTPUT '(' expression ')' ';' {
+    if(($3).type == INTEGER_TYPE) {
+      char* line_string;
+      sprintf(line_string, "%s%s", "IPRT ", ($3).etext);
+      insert_line(buffer, current_line, line_string);
+    }
+    else {
+      char* line_string;
+      sprintf(line_string, "%s%s", "RPRT ", ($3).etext);
+      insert_line(buffer, current_line, line_string);
+    }
+    current_line++;
+}
 
 if_stmt:	IF '(' boolexpr ')'
 {
@@ -360,30 +419,30 @@ stmt
 
 switch_stmt:	SWITCH '(' expression ')' '{' 
 {
-  ($7).exprstruct.type = ($3).type;
-  ($7).exprstruct.etext = ($3).etext;
+  $<caselist_struct>$.type = ($3).type;
+  $<caselist_struct>$.cltext = ($3).etext;
 }
 caselist
 DEFAULT ':' stmtlist '}' 
 {
-  g_list_foreach(($7).break_lines_list, fix_break_lines, GINT_TO_POINTER(current_line));
-  g_list_free(($7).break_lines_list);
+  g_list_foreach(($<caselist_struct>$).break_lines_list, fix_break_lines, GINT_TO_POINTER(current_line));
+  g_list_free(($<caselist_struct>$).break_lines_list);
   $$.break_lines_list = NULL;
 }
 
 caselist:	caselist CASE NUM ':'
 {
   char* temp_var_text;
-  sprintftemp_var_text "_t%d", temp_var_count);
+  sprintf(temp_var_text, "_t%d", temp_var_count);
   temp_var_count++;
-  if($$.exprstruct.type == INTEGER_TYPE) {
+  if(($<caselist_struct>0).type == INTEGER_TYPE) {
     char* line_string;
-    sprintf(line_string, "%s %s %s %s", "IEQL", temp_var_text, $$.exprstruct.etext, ($3).sval);
+    sprintf(line_string, "%s %s %s %s", "IEQL", temp_var_text, ($<caselist_struct>0).cltext, $3);
     insert_line(buffer, current_line++, line_string);
   }
-  else if($$.exprstruct.type == FLOAT_TYPE) {
+  else if(($<caselist_struct>0).type == FLOAT_TYPE) {
     char* line_string;
-    sprintf(line_string, "%s %s %s %s", "REQL", temp_var_text, $$.exprstruct.etext, ($3).sval);
+    sprintf(line_string, "%s %s %s %s", "REQL", temp_var_text, ($<caselist_struct>0).cltext, $3);
     insert_line(buffer, current_line++, line_string);
   }
 
@@ -412,12 +471,12 @@ stmtlist
   e.data.l = current_line;
   set_element(buffer, $2, 1, e);
 
-  $$.break_lines_list = g_list_concat(($1).break_lines_list, ($6).break_lines_list);
+  ($<caselist_struct>0).break_lines_list = g_list_concat(($<caselist_struct>$).break_lines_list, ($6).break_lines_list);
 }
 
 caselist: ""
 {
-  $$.break_lines_list = NULL;
+  ($<caselist_struct>0).break_lines_list = NULL;
 }
 
 break_stmt:		BREAK ';'
@@ -433,7 +492,7 @@ break_stmt:		BREAK ';'
   insert_element(buffer, current_line, 1, e2);
   int* current_line_p = (int*) malloc(sizeof(int));
   *current_line_p = current_line;
-  $$.break_lines_list = g_list_prepend(GINT_TO_POINTER(*current_line_p));
+  $$.break_lines_list = g_list_prepend($$.break_lines_list, GINT_TO_POINTER(*current_line_p));
   current_line++;
 }
 
@@ -939,6 +998,7 @@ int main (int argc, char **argv)
 
   symbol_table = g_hash_table_new(g_str_hash, g_str_equal);
   buffer = create_buffer();
+  sprintf(input_file_name, "%s", argv[0]);
 
 #if 0
 
@@ -947,6 +1007,7 @@ int main (int argc, char **argv)
 #endif
 #endif
   yyparse ();
+  
 
   g_hash_table_foreach(symbol_table, symbol_free, NULL);
   g_hash_table_destroy(symbol_table);

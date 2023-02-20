@@ -20,6 +20,7 @@ void insert_element(Line* buffer, int col, Element e);
 void insert_char(Line* buffer, char c);
 void insert_label(Line* buffer, Label l);
 void delete_element(Line* buffer, int col);
-void iterate_buffer(Line* buffer);
+void delete_buffer(Line* buffer);
+void create_qud_file(Line* buffer, char* file_name);
 
 #endif

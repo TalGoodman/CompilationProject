@@ -63,22 +63,48 @@ void delete_line(Line* buffer, int line) {
     *buffer = g_list_delete_link(*buffer, line_list);
 }
 
-// Define a function to iterate over the buffer
-void iterate_buffer(Line* buffer) {
+//Delete buffer
+void delete_buffer(Line* buffer) {
     for (GListLine* line_list = *buffer; line_list != NULL; line_list = line_list->next) {
-        for (GListElement* elem_list = line_list->data; elem_list != NULL; elem_list = elem_list->next) {
-            if (elem_list->data != NULL) {
-                Element* elem = elem_list->data;
-                if (elem->type == STRING) {
-                    // element is a character
-                    printf("Character: %c\n", *(elem->data.s));
+        for (GListElement* element_list = line_list->data; element_list != NULL; element_list = element_list->next) {
+            if (element_list->data != NULL) {
+                Element* element = element_list->data;
+                if (element->type == STRING) {
+                    // element is a string
+                    g_free(element->data.s);
+                }
+                g_free(element);
+            }
+        }
+    }
+}
+
+void create_qud_file(Line* buffer, char* file_name) {
+    FILE* file = fopen(file_name, "w");
+    if (file == NULL) {
+        //TODO: print to stdr
+        printf("Failed to create file.\n");
+        return;
+    }
+
+    for (GListLine* line_list = *buffer; line_list != NULL; line_list = line_list->next) {
+        for (GListElement* element_list = line_list->data; element_list != NULL; element_list = element_list->next) {
+            if (element_list->data != NULL) {
+                Element* element = element_list->data;
+                if (element->type == STRING) {
+                    // element is a string
+                    fprintf(file, "%s", element->data.s);
                 } else {
                     // element is a Label
-                    printf("Label: %d\n", elem->data.l);
+                    fprintf(file, "%d", element->data.l);
+                }
+                if(element_list->next == NULL) {
+                    fprintf(file, "\n");
                 }
             }
         }
     }
+    fclose(file);
 }
 
 
