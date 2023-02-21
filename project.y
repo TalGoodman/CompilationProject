@@ -16,7 +16,7 @@ int label_count = 0;
 
 int error_exists = 0;
 
-char* input_file_name = NULL;
+GString* input_file_name;
 
 
 
@@ -25,7 +25,6 @@ struct Symbol {
   union {
     int int_value;
     float float_value;
-    char* string_value;
   } value;
 };
 
@@ -139,6 +138,23 @@ int get_symbol_type(char* id){
 %token <sval> NUM
 %token <sval> ID
 
+%token '(' /* character literal */
+%token ')' /* character literal */
+%token '{' /* character literal */
+%token '}' /* character literal */
+%token ',' /* character literal */
+%token ';' /* character literal */
+%token ':' /* character literal */
+%token '=' /* character literal */
+%token '!' /* character literal */
+%token '*' /* character literal */
+%token '/' /* character literal */
+%token '+' /* character literal */
+%token '-' /* character literal */
+%token '<' /* character literal */
+%token '>' /* character literal */
+
+
 
 /*
 %nterm program
@@ -164,6 +180,8 @@ int get_symbol_type(char* id){
 %nterm term
 %nterm factor
 */
+%nterm declarations
+%nterm declaration
 
 %type <factor_struct> factor
 %type <term_struct> term
@@ -177,7 +195,7 @@ int get_symbol_type(char* id){
 %type <ival> ELSE
 %type <ival> WHILE
 %type <ival> CASE
-%type <stmt_struct> stmt assignment_stmt input_stmt output_stmt if_stmt while_stmt switch_stmt break_stmt stmt_block stmtlist
+%nterm <stmt_struct> stmt assignment_stmt input_stmt output_stmt if_stmt while_stmt switch_stmt break_stmt stmt_block stmtlist
 %type <sval> boolfactor
 %type <sval> boolterm
 %type <sval> boolexpr
@@ -198,13 +216,13 @@ program:	declarations stmt_block {
   if(error_exists == 0){
     create_qud_file(buffer, input_file_name);
   }
-}
+};
 
 declarations:	declarations declaration {
   symbols = g_list_reverse(symbols);
-}
+};
 
-declarations: ""
+declarations: ;
 
 declaration:	idlist ':' type ';' {
   int type_val;
@@ -220,57 +238,57 @@ declaration:	idlist ':' type ';' {
     //declaration_count++;
     //symbol_count = 0;
 	//symbols = NULL;
-}
+};
 
-type:	INT { $$ = INTEGER_TYPE; } | FLOAT { $$ = FLOAT_TYPE; }
+type:	INT { $$ = INTEGER_TYPE; }; | FLOAT { $$ = FLOAT_TYPE; };
 
 idlist:		idlist ',' ID {
     symbols = g_list_prepend(symbols, strdup($3));
-  }
+  };
 
 idlist:		ID {
     symbols = g_list_prepend(symbols, strdup($1));
-  }
+  };
 
 stmt:	assignment_stmt
 {
   $$.break_lines_list = NULL;
-}
+};
 
 stmt:	input_stmt
 {
   $$.break_lines_list = NULL;
-}
+};
 
 stmt:	output_stmt
 {
   $$.break_lines_list = NULL;
-}
+};
 
 stmt:	if_stmt
 {
   $$.break_lines_list = g_list_copy(($1).break_lines_list);
-}
+};
 
 stmt:	while_stmt
 {
   $$.break_lines_list = g_list_copy(($1).break_lines_list);
-}
+};
 
 stmt:	switch_stmt
 {
   $$.break_lines_list = g_list_copy(($1).break_lines_list);
-}
+};
 
 stmt:	break_stmt
 {
   $$.break_lines_list = g_list_copy(($1).break_lines_list);
-}
+};
 
 stmt:	stmt_block
 {
   $$.break_lines_list = g_list_copy(($1).break_lines_list);
-}
+};
 
 assignment_stmt:	ID '=' expression ';' 
 {
@@ -306,7 +324,7 @@ assignment_stmt:	ID '=' expression ';'
       sprintf(line_string, "%s %s %s", "IASN", $1, ($3).etext);
       insert_line(buffer, current_line++, line_string);
   }
-}
+};
 
 input_stmt:		INPUT '(' ID ')' ';' {
     int symbol_type = get_symbol_type($3);
@@ -321,7 +339,7 @@ input_stmt:		INPUT '(' ID ')' ';' {
       insert_line(buffer, current_line, line_string);
     }
     current_line++;
-}
+};
 
 output_stmt:	OUTPUT '(' expression ')' ';' {
     if(($3).type == INTEGER_TYPE) {
@@ -335,7 +353,7 @@ output_stmt:	OUTPUT '(' expression ')' ';' {
       insert_line(buffer, current_line, line_string);
     }
     current_line++;
-}
+};
 
 if_stmt:	IF '(' boolexpr ')'
 {
@@ -380,7 +398,7 @@ stmt
   e.type = LABEL;
   e.data.l = current_line;
   set_element(buffer, $7, 1, e);
-}
+};
 
 while_stmt:		WHILE '(' boolexpr ')'
 {
@@ -415,7 +433,7 @@ stmt
   g_list_foreach(($6).break_lines_list, fix_break_lines, GINT_TO_POINTER(current_line));
   g_list_free(($6).break_lines_list);
   $$.break_lines_list = NULL;
-}
+};
 
 switch_stmt:	SWITCH '(' expression ')' '{' 
 {
@@ -428,7 +446,7 @@ DEFAULT ':' stmtlist '}'
   g_list_foreach(($<caselist_struct>$).break_lines_list, fix_break_lines, GINT_TO_POINTER(current_line));
   g_list_free(($<caselist_struct>$).break_lines_list);
   $$.break_lines_list = NULL;
-}
+};
 
 caselist:	caselist CASE NUM ':'
 {
@@ -472,12 +490,12 @@ stmtlist
   set_element(buffer, $2, 1, e);
 
   ($<caselist_struct>0).break_lines_list = g_list_concat(($<caselist_struct>$).break_lines_list, ($6).break_lines_list);
-}
+};
 
-caselist: ""
+caselist: 
 {
   ($<caselist_struct>0).break_lines_list = NULL;
-}
+};
 
 break_stmt:		BREAK ';'
 {
@@ -494,22 +512,22 @@ break_stmt:		BREAK ';'
   *current_line_p = current_line;
   $$.break_lines_list = g_list_prepend($$.break_lines_list, GINT_TO_POINTER(*current_line_p));
   current_line++;
-}
+};
 
 stmt_block:		'{' stmtlist '}'
 {
   $$.break_lines_list = g_list_copy(($2).break_lines_list);
-}
+};
 
 stmtlist:	stmtlist stmt
 {
   $$.break_lines_list = g_list_concat(($1).break_lines_list, ($2).break_lines_list);
-}
+};
 
-stmtlist: ""
+stmtlist: 
 {
   $$.break_lines_list = NULL;
-}
+};
 
 boolexpr:	boolexpr OR boolterm {
   sprintf($$, "_t%d", temp_var_count);
@@ -517,11 +535,11 @@ boolexpr:	boolexpr OR boolterm {
   char* line_string;
   sprintf(line_string, "%s %s %s %s", "IADD", $$, $1, $3);
   insert_line(buffer, current_line++, line_string);
-}
+};
 
 boolexpr: boolterm {
   $$ = $1;
-}
+};
 
 boolterm:	boolterm AND boolfactor {
   sprintf($$, "_t%d", temp_var_count);
@@ -529,11 +547,11 @@ boolterm:	boolterm AND boolfactor {
   char* line_string;
   sprintf(line_string, "%s %s %s %s", "IMLT", $$, $1, $3);
   insert_line(buffer, current_line++, line_string);
-}
+};
 
 boolterm: boolfactor {
   $$ = $1;
-}
+};
 
 boolfactor:		NOT '(' boolexpr ')' {
   sprintf($$, "_t%d", temp_var_count);
@@ -541,7 +559,7 @@ boolfactor:		NOT '(' boolexpr ')' {
   char* line_string;
   sprintf(line_string, "%s %s %s %s", "ILSS", $$, $3, "1");
   insert_line(buffer, current_line++, line_string);
-}
+};
 
 boolfactor: expression RELOP expression {
   sprintf($$, "_t%d", temp_var_count);
@@ -708,7 +726,7 @@ boolfactor: expression RELOP expression {
             printf("Invalid RELOP");
       }
     }
-  }
+  };
 
 
 expression:		expression ADDOP term {
@@ -778,7 +796,7 @@ expression:		expression ADDOP term {
       insert_line(buffer, current_line++, line_string);
     }
   }
-}
+};
 
 expression:   term {
   $$.etext = ($1).ttext;
@@ -790,7 +808,7 @@ expression:   term {
     $$.type = FLOAT_TYPE;
     $$.value.fval = ($1).value.fval;
   }
-}
+};
 
 term:	term MULOP factor {
   sprintf($$.ttext, "_t%d", temp_var_count);
@@ -859,7 +877,7 @@ term:	term MULOP factor {
       insert_line(buffer, current_line++, line_string);
     }
   }
-}
+};
 
 term: factor {
   $$.ttext = ($1).ftext;
@@ -871,7 +889,7 @@ term: factor {
     $$.type = FLOAT_TYPE;
     $$.value.fval = ($1).value.fval;
   }
-}
+};
 
 factor:		'(' expression ')' {
   //TODO: check this later
@@ -884,7 +902,7 @@ factor:		'(' expression ')' {
     $$.type = FLOAT_TYPE;
     $$.value.fval = ($2).value.fval;
   }
-}
+};
 
 factor:		CAST '(' expression ')' {
   sprintf($$.ftext, "_t%d", temp_var_count);
@@ -910,7 +928,7 @@ factor:		CAST '(' expression ')' {
       $$.value.fval = (double)($3).value.ival;
     }
   }
-}
+};
 
 factor:		ID {
   struct Symbol *symbol = g_hash_table_lookup(symbol_table, $1);
@@ -923,7 +941,7 @@ factor:		ID {
     $$.value.fval = symbol -> value.float_value;
   }
   $$.ftext = $1;
-}
+};
 
 factor:		NUM {
   char* endptr;
@@ -944,7 +962,7 @@ factor:		NUM {
     }
   }
   $$.ftext = $1;
-}
+};
 
 
 /*
@@ -964,21 +982,21 @@ factor:		NUM {
 
 
 
-NOT:	'!'
+NOT:	'!';
 
-AND:	"&&"
+AND:	"&&";
 
-OR:		"||"
+OR:		"||";
 
-MULOP:	'*' { $$ = MUL_TYPE; } | '/' { $$ = DIV_TYPE; }
+MULOP:	'*' { $$ = MUL_TYPE; }; | '/' { $$ = DIV_TYPE; };
 
-ADDOP:	'+' { $$ = ADD_TYPE; } | '-' { $$ = SUB_TYPE; }
+ADDOP:	'+' { $$ = ADD_TYPE; }; | '-' { $$ = SUB_TYPE; };
 
-RELOP:	'<' { $$ = LT_TYPE; } | '>' { $$ = GT_TYPE; } | "<=" { $$ = LE_TYPE; } | ">=" { $$ = GE_TYPE; }
+RELOP:	'<' { $$ = LT_TYPE; }; | '>' { $$ = GT_TYPE; }; | "<=" { $$ = LE_TYPE; }; | ">=" { $$ = GE_TYPE; };
 
-RELOP:	"!=" { $$ = NEQ_TYPE; } | "==" { $$ = EQ_TYPE; }
+RELOP:	"!=" { $$ = NEQ_TYPE; }; | "==" { $$ = EQ_TYPE; };
 
-CAST:	"static_cast<int>" { $$ = CAST_INT_TYPE; } | "static_cast<float>" { $$ = CAST_FLOAT_TYPE; }
+CAST:	"static_cast<int>" { $$ = CAST_INT_TYPE; }; | "static_cast<float>" { $$ = CAST_FLOAT_TYPE; };
 
 
 		   
@@ -998,7 +1016,9 @@ int main (int argc, char **argv)
 
   symbol_table = g_hash_table_new(g_str_hash, g_str_equal);
   buffer = create_buffer();
-  sprintf(input_file_name, "%s", argv[0]);
+  //sprintf(input_file_name, "%s", argv[0]);
+  input_file_name = g_string_new((const gchar*)argv[0]);
+
 
 #if 0
 
@@ -1008,7 +1028,7 @@ int main (int argc, char **argv)
 #endif
   yyparse ();
   
-
+  g_string_free(input_file_name, TRUE);
   g_hash_table_foreach(symbol_table, symbol_free, NULL);
   g_hash_table_destroy(symbol_table);
   

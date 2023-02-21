@@ -79,8 +79,8 @@ void delete_buffer(Line* buffer) {
     }
 }
 
-void create_qud_file(Line* buffer, char* file_name) {
-    FILE* file = fopen(file_name, "w");
+void create_qud_file(Line* buffer, GString* file_name) {
+    FILE* file = fopen(file_name->str, "w");
     if (file == NULL) {
         //TODO: print to stdr
         printf("Failed to create file.\n");

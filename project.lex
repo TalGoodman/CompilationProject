@@ -7,16 +7,41 @@
 
 %option noyywrap
 %option yylineno
+
+%x STAR_COMMENT
+
 %%
+"/*".*"*/"	{}
+"/*"	{BEGIN(STAR_COMMENT);}
+<STAR_COMMENT>. {}
+<STAR_COMMENT>"*/" {BEGIN(0);}
 
 [0-9]+     { yylval.sval = yytext; return NUM; }
 
 [0-9]+'.'[0-9]* { yylval.sval = yytext; return NUM; }
 
+"if"        {return IF;}
+"else"        {return ELSE;}
+
+"("        { return '('; }
+")"        { return ')'; }
+"{"        { return '{'; }
+"}"        { return '}'; }
+","        { return ','; }
+";"        { return ';'; }
+":"        { return ':'; }
+"="        { return '='; }
+"!"        { return '!'; }
+"*"        { return '*'; }
+"."        { return '.'; }
+"+"        { return '+'; }
+"-"        { return '-'; }
+"<"        { return '<'; }
+">"        { return '>'; }
+
 [a-zA-Z][a-zA-Z0-9]* { yylval.sval = strdup(yytext); return ID; }
 
 [\n\r\t ]+   /* skip white space */
-
 
 "//".*     /* skip comment */
 

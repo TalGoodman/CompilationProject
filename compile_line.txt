@@ -1,1 +1,3 @@
+bison -d project.y
+flex project.lex
 gcc -o myprogram project.tab.c  outputlist.c lex.yy.c -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -lglib-2.0
