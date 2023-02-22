@@ -13,7 +13,7 @@ typedef int Label;
 typedef struct {
     enum { STRING, LABEL } type;
     union {
-        char* s;
+        GString* s;
         Label l;
     } data;
 } Element;
@@ -22,7 +22,7 @@ typedef struct {
 
 Line* create_buffer();
 void insert_element(Line* buffer, int line, int col, Element e);
-void insert_line(Line* buffer, int line, const char* text);
+void insert_line(Line* buffer, int line, const GString* text);
 void set_element(Line* buffer, int line, int col, Element e);
 void delete_elem(Line* buffer, int line, int col);
 void delete_line(Line* buffer, int line);

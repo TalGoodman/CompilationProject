@@ -18,16 +18,13 @@ void insert_element(Line* buffer, int line, int col, Element e) {
 }
 
 // Define a function to insert a line into the buffer
-void insert_line(Line* buffer, int line, const char* text) {
+void insert_line(Line* buffer, int line, const GString* text) {
     GListLine* line_list = g_list_nth(*buffer, line);
     GListElement* elem_list = NULL;
-    for (int i = 0; i < strlen(text); i++) {
-        Element* elem = g_new(Element, 1);
-        elem->type = STRING;
-        elem->data.s = g_new(char, 1);
-        *(elem->data.s) = text[i];
-        elem_list = g_list_append(elem_list, elem);
-    }
+    Element* elem = g_new(Element, 1);
+    elem->type = STRING;
+    elem->data.s = g_string_new(text->str);
+    elem_list = g_list_append(elem_list, elem);
     *buffer = g_list_insert(*buffer, elem_list, line);
 }
 
@@ -93,7 +90,7 @@ void create_qud_file(Line* buffer, GString* file_name) {
                 Element* element = element_list->data;
                 if (element->type == STRING) {
                     // element is a string
-                    fprintf(file, "%s", element->data.s);
+                    fprintf(file, "%s", element->data.s->str);
                 } else {
                     // element is a Label
                     fprintf(file, "%d", element->data.l);

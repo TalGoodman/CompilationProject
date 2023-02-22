@@ -31,13 +31,22 @@
 ";"        { return ';'; }
 ":"        { return ':'; }
 "="        { return '='; }
-"!"        { return '!'; }
-"*"        { return '*'; }
-"."        { return '.'; }
-"+"        { return '+'; }
-"-"        { return '-'; }
-"<"        { return '<'; }
-">"        { return '>'; }
+"*"        { yylval.ival = MUL_TYPE; return MULOP; }
+"/"        { yylval.ival = DIV_TYPE; return MULOP; }
+"+"        { yylval.ival = ADD_TYPE; return ADDOP; }
+"-"        { yylval.ival = SUB_TYPE; return ADDOP; }
+
+"<"        { yylval.ival = LT_TYPE; return RELOP; }
+">"        { yylval.ival = GT_TYPE; return RELOP; }
+"<="        { yylval.ival = LE_TYPE; return RELOP; }
+">="        { yylval.ival = GE_TYPE; return RELOP; }
+"!="        { yylval.ival = NEQ_TYPE; return RELOP; }
+"=="        { yylval.ival = EQ_TYPE; return RELOP; }
+"static_cast<int>"        { yylval.ival = CAST_INT_TYPE; return CAST; }
+"static_cast<float>"        { yylval.ival = CAST_FLOAT_TYPE; return CAST; }
+"!"        { return NOT; }
+"||"        { return OR; }
+"&&"        { return AND; }
 
 [a-zA-Z][a-zA-Z0-9]* { yylval.sval = strdup(yytext); return ID; }
 
