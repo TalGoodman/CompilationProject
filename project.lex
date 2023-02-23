@@ -22,6 +22,15 @@
 
 "if"        {return IF;}
 "else"        {return ELSE;}
+"input"     {return INPUT;}
+"output"     {return OUTPUT;}
+"while"     {return WHILE;}
+"switch"    {return SWITCH;}
+"default"    {return DEFAULT;}
+"break"    {return BREAK;}
+"case"    {return CASE;}
+"int"    {return INT;}
+"float"    {return FLOAT;}
 
 "("        { return '('; }
 ")"        { return ')'; }

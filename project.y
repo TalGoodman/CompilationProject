@@ -189,7 +189,7 @@ void try_to_free_g_string(GString* s, gboolean free_segment) {
 %type <gsval> boolterm
 %type <gsval> boolexpr
 
-%nterm <caselist_struct> caselist
+%nterm <caselist_struct> caselist1
 
  
 %define parse.error verbose
@@ -256,27 +256,27 @@ stmt:	output_stmt
 
 stmt:	if_stmt
 {
-  $$.break_lines_list = g_list_copy(($1).break_lines_list);
+  $$.break_lines_list = ($1).break_lines_list;
 };
 
 stmt:	while_stmt
 {
-  $$.break_lines_list = g_list_copy(($1).break_lines_list);
+  $$.break_lines_list = ($1).break_lines_list;
 };
 
 stmt:	switch_stmt
 {
-  $$.break_lines_list = g_list_copy(($1).break_lines_list);
+  $$.break_lines_list = ($1).break_lines_list;
 };
 
 stmt:	break_stmt
 {
-  $$.break_lines_list = g_list_copy(($1).break_lines_list);
+  $$.break_lines_list = ($1).break_lines_list;
 };
 
 stmt:	stmt_block
 {
-  $$.break_lines_list = g_list_copy(($1).break_lines_list);
+  $$.break_lines_list = ($1).break_lines_list;
 };
 
 assignment_stmt:	ID '=' expression ';' 
@@ -517,6 +517,8 @@ caselist:
   ($<caselist_struct>0).break_lines_list = NULL;
 };
 
+caselist1: 
+
 break_stmt:		BREAK ';'
 {
   Element e1;
@@ -537,7 +539,7 @@ break_stmt:		BREAK ';'
 
 stmt_block:		'{' stmtlist '}'
 {
-  $$.break_lines_list = g_list_copy(($2).break_lines_list);
+  $$.break_lines_list = ($2).break_lines_list;
 };
 
 stmtlist:	stmtlist stmt

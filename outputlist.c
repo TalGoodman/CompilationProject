@@ -12,15 +12,6 @@ Line* create_buffer() {
 // Define a function to insert an element into the buffer
 void insert_element(Line* buffer, int line, int col, Element e) {
     fprintf(stderr, "hello1");
-    GListLine* line_list = g_list_nth(*buffer, line);
-    fprintf(stderr, "hello2\n");
-    GListElement* element_list;
-    if(line_list == NULL){
-        line_list = g_new(GListLine, 1);
-        line_list->data = element_list;
-    }
-    GListElement* element_list = g_list_nth(line_list->data, col);
-    fprintf(stderr, "hello6\n");
     Element* element = g_new(Element, 1);
     element->type = e.type;
     if(e.type == STRING) {
@@ -30,22 +21,37 @@ void insert_element(Line* buffer, int line, int col, Element e) {
     else {
         element->data.l = e.data.l;
     }
-    element_list->data = element;
+    GListLine* line_list = g_list_nth(*buffer, line);
+    fprintf(stderr, "hello2\n");
+    //GListElement* element_list;
+    if(line_list == NULL){
+        line_list = g_list_insert(line_list, element, 0);
+        *buffer = g_list_insert(*buffer, line_list, line);
+    }
+    else {
+        line_list = g_list_insert(line_list, element, col);
+    }
+    //GListElement* element_list = g_list_nth(line_list->data, col);
+    fprintf(stderr, "hello6\n");
+    //element_list->data = element;
     fprintf(stderr, "hello8\n");
 }
 
 // Define a function to insert a line into the buffer
 void insert_line(Line* buffer, int line, const GString* text) {
     GListLine* line_list = g_list_nth(*buffer, line);
-    GListElement* elem_list = NULL;
+    //GListElement* elem_list = NULL;
     Element* elem = g_new(Element, 1);
     elem->type = STRING;
     elem->data.s = g_string_new(text->str);
-    elem_list = g_list_append(elem_list, elem);
-    *buffer = g_list_insert(*buffer, elem_list, line);
+    line_list = g_list_append(line_list, elem);
+    //elem_list = g_list_append(elem_list, elem);
+    *buffer = g_list_insert(*buffer, line_list, line);
 }
 
 void set_element(Line* buffer, int line, int col, Element e) {
+    insert_element(buffer, line, col, e);
+    /*
     GListLine* line_list = g_list_nth(*buffer, line);
     GListElement* elem_list = g_list_nth(line_list->data, col);
     if (elem_list->data != NULL) {
@@ -53,7 +59,7 @@ void set_element(Line* buffer, int line, int col, Element e) {
     }
     Element* elem = g_new(Element, 1);
     *elem = e;
-    elem_list->data = elem;
+    elem_list->data = elem;*/
 }
 
 // Define a function to delete an element from the buffer
