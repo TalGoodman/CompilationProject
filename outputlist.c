@@ -3,6 +3,7 @@
 
 // Define a function to create a new buffer
 Line* create_buffer() {
+    fprintf(stderr, "hello3");
     Line* buffer = g_new(Line, 1);
     *buffer = NULL;
     return buffer;
@@ -10,11 +11,27 @@ Line* create_buffer() {
 
 // Define a function to insert an element into the buffer
 void insert_element(Line* buffer, int line, int col, Element e) {
+    fprintf(stderr, "hello1");
     GListLine* line_list = g_list_nth(*buffer, line);
-    GListElement* elem_list = g_list_nth(line_list->data, col);
-    Element* elem = g_new(Element, 1);
-    *elem = e;
-    elem_list->data = elem;
+    fprintf(stderr, "hello2\n");
+    GListElement* element_list;
+    if(line_list == NULL){
+        line_list = g_new(GListLine, 1);
+        line_list->data = element_list;
+    }
+    GListElement* element_list = g_list_nth(line_list->data, col);
+    fprintf(stderr, "hello6\n");
+    Element* element = g_new(Element, 1);
+    element->type = e.type;
+    if(e.type == STRING) {
+        fprintf(stderr, "hello7\n");
+        element->data.s = g_string_new(e.data.s->str);
+    }
+    else {
+        element->data.l = e.data.l;
+    }
+    element_list->data = element;
+    fprintf(stderr, "hello8\n");
 }
 
 // Define a function to insert a line into the buffer
