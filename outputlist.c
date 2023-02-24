@@ -3,54 +3,78 @@
 
 // Define a function to create a new buffer
 Line* create_buffer() {
-    fprintf(stderr, "hello3");
     Line* buffer = g_new(Line, 1);
     *buffer = NULL;
     return buffer;
 }
 
 // Define a function to insert an element into the buffer
-void insert_element(Line* buffer, int line, int col, Element e) {
-    fprintf(stderr, "hello1");
-    Element* element = g_new(Element, 1);
-    element->type = e.type;
-    if(e.type == STRING) {
-        fprintf(stderr, "hello7\n");
-        element->data.s = g_string_new(e.data.s->str);
-    }
-    else {
-        element->data.l = e.data.l;
-    }
+Line* insert_element(Line* buffer, int line, int col, GString* e) {
+    GString* element = g_string_new(e->str);
     GListLine* line_list = g_list_nth(*buffer, line);
-    fprintf(stderr, "hello2\n");
     //GListElement* element_list;
     if(line_list == NULL){
         line_list = g_list_insert(line_list, element, 0);
         *buffer = g_list_insert(*buffer, line_list, line);
+        fprintf(stderr, "colsddsumn: %s\n", element->str);
     }
     else {
-        line_list = g_list_insert(line_list, element, col);
+        GList* temp_list = NULL;
+        for(GListElement* l = line_list->data; l != NULL; l = l->next){
+            GString* temp_gstring = l->data;
+            GString* e = g_string_new(temp_gstring->str);
+            temp_list = g_list_append(temp_list, e);
+        }
+        *buffer = g_list_delete_link(*buffer, line_list);
+        temp_list = g_list_insert(temp_list, element, col);
+        *buffer = g_list_insert(*buffer, temp_list, line);
     }
     //GListElement* element_list = g_list_nth(line_list->data, col);
-    fprintf(stderr, "hello6\n");
     //element_list->data = element;
-    fprintf(stderr, "hello8\n");
+    return buffer;
 }
 
 // Define a function to insert a line into the buffer
-void insert_line(Line* buffer, int line, const GString* text) {
+Line* insert_line(Line* buffer, int line, const GString* text) {
     GListLine* line_list = g_list_nth(*buffer, line);
     //GListElement* elem_list = NULL;
-    Element* elem = g_new(Element, 1);
-    elem->type = STRING;
-    elem->data.s = g_string_new(text->str);
-    line_list = g_list_append(line_list, elem);
+    GString* elem;
+    elem = g_string_new(text->str);
+    line_list = g_list_insert(line_list, elem, 0);
     //elem_list = g_list_append(elem_list, elem);
     *buffer = g_list_insert(*buffer, line_list, line);
+    return buffer;
 }
 
-void set_element(Line* buffer, int line, int col, Element e) {
-    insert_element(buffer, line, col, e);
+void set_element(Line* buffer, int line, int col, GString* e) {
+    //insert_element(buffer, line, col, e);
+    //GListLine* line_list = g_list_nth(*buffer, line);
+    int line_counter = 0;
+    for (GListLine* line_list = *buffer; line_list != NULL && line_counter <= line; line_list = line_list->next) {
+        if(line_counter == line){
+            int counter = 0;
+            for (GListElement* element_list = line_list->data; element_list != NULL && counter <= col; element_list = element_list->next) {
+                if(counter == col) {
+                    if (element_list != NULL && element_list->data != NULL) {
+                        //free string
+                        element_list->data = g_string_new(e->str);
+                        
+                    }
+                }
+                counter++;
+            }
+        }
+        line_counter++;
+    }
+    //GListElement* nth = g_list_nth(line_list->data, col);
+    //Element* first_element_p = nth->data;
+    //void* temp_pointer = (void*) nth_data;
+    //Element* first_element_p = (Element*) temp_pointer;
+    //Element *first_element_p = (Element *) GSIZE_TO_POINTER(GPOINTER_TO_SIZE(nth_data));
+    //Element* first_element_p = (Element*) G_STRUCT_MEMBER_P(nth_data, 0);
+    //first_element_p->data.l = e.data.l;
+    //fprintf(stderr, "element type: %d\n", first_element_p->type);
+    //fprintf(stderr, "element type: %d\n", e.type);
     /*
     GListLine* line_list = g_list_nth(*buffer, line);
     GListElement* elem_list = g_list_nth(line_list->data, col);
@@ -63,14 +87,16 @@ void set_element(Line* buffer, int line, int col, Element e) {
 }
 
 // Define a function to delete an element from the buffer
+/*
 void delete_elem(Line* buffer, int line, int col) {
     GListLine* line_list = g_list_nth(*buffer, line);
     GListElement* elem_list = g_list_nth(line_list->data, col);
     g_free(elem_list->data);
     line_list->data = g_list_delete_link(line_list->data, elem_list);
 }
-
+*/
 // Define a function to delete a line from the buffer
+/*
 void delete_line(Line* buffer, int line) {
     GListLine* line_list = g_list_nth(*buffer, line);
     for (GListElement* elem_list = line_list->data; elem_list != NULL; elem_list = elem_list->next) {
@@ -81,46 +107,42 @@ void delete_line(Line* buffer, int line) {
         g_free(elem);
     }
     *buffer = g_list_delete_link(*buffer, line_list);
-}
+}*/
 
 //Delete buffer
 void delete_buffer(Line* buffer) {
     for (GListLine* line_list = *buffer; line_list != NULL; line_list = line_list->next) {
         for (GListElement* element_list = line_list->data; element_list != NULL; element_list = element_list->next) {
             if (element_list->data != NULL) {
-                Element* element = element_list->data;
-                if (element->type == STRING) {
-                    // element is a string
-                    g_free(element->data.s);
-                }
-                g_free(element);
+                GString* element = element_list->data;
+                g_string_free(element, TRUE);
             }
         }
     }
 }
 
 void create_qud_file(Line* buffer, GString* file_name) {
+    //TODO: change to g_string_truncate(input_file_name, input_file_name->len - 3);
+    g_string_truncate(file_name, file_name->len - 4);
+    g_string_append(file_name, ".qud");
+    //fprintf(stderr, "%s", file_name->str);
     FILE* file = fopen(file_name->str, "w");
     if (file == NULL) {
         //TODO: print to stdr
         printf("Failed to create file.\n");
         return;
     }
-
     for (GListLine* line_list = *buffer; line_list != NULL; line_list = line_list->next) {
         for (GListElement* element_list = line_list->data; element_list != NULL; element_list = element_list->next) {
-            if (element_list->data != NULL) {
-                Element* element = element_list->data;
-                if (element->type == STRING) {
-                    // element is a string
-                    fprintf(file, "%s", element->data.s->str);
-                } else {
-                    // element is a Label
-                    fprintf(file, "%d", element->data.l);
-                }
+            if (element_list != NULL && element_list->data != NULL) {
+                GString* element = element_list->data;
+                fprintf(file, "%s", element->str);
                 if(element_list->next == NULL) {
                     fprintf(file, "\n");
                 }
+            }
+            else {
+                fprintf(file, "\n");
             }
         }
     }

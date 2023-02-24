@@ -8,22 +8,13 @@
 typedef GList GListLine;
 typedef GList GListElement;
 typedef GListElement* Line;
-typedef int Label;
-
-typedef struct {
-    enum { STRING, LABEL } type;
-    union {
-        GString* s;
-        Label l;
-    } data;
-} Element;
 
 
 
 Line* create_buffer();
-void insert_element(Line* buffer, int line, int col, Element e);
-void insert_line(Line* buffer, int line, const GString* text);
-void set_element(Line* buffer, int line, int col, Element e);
+Line* insert_element(Line* buffer, int line, int col, GString* s);
+Line* insert_line(Line* buffer, int line, const GString* text);
+void set_element(Line* buffer, int line, int col, GString* e);
 void delete_elem(Line* buffer, int line, int col);
 void delete_line(Line* buffer, int line);
 void delete_buffer(Line* buffer);

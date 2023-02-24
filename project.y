@@ -34,12 +34,12 @@ void symbol_free(gpointer key, gpointer value, gpointer userdata) {
 }
 
 void fix_break_lines(gpointer data, gpointer user_data) {
-  int current_line = GPOINTER_TO_INT(user_data);
+  int line = GPOINTER_TO_INT(user_data);
   int break_line = GPOINTER_TO_INT(data);
 
-  Element e;
-  e.type = LABEL;
-  e.data.l = current_line;
+  GString* e;
+  e = g_string_new(NULL);
+  g_string_append_printf(e, "%d", line);
   set_element(buffer, break_line, 1, e);
 }
 
@@ -113,7 +113,7 @@ void try_to_free_g_string(GString* s, gboolean free_segment) {
    struct CaseList{
        int type;
        GString* cltext;
-       GList* break_lines_list;
+       //GList* break_lines_list;
    } caselist_struct;
 }
 
@@ -184,12 +184,12 @@ void try_to_free_g_string(GString* s, gboolean free_segment) {
 %type <ival> ELSE
 %type <ival> WHILE
 %type <ival> CASE
-%nterm <stmt_struct> stmt assignment_stmt input_stmt output_stmt if_stmt while_stmt switch_stmt break_stmt stmt_block stmtlist
+%nterm <stmt_struct> stmt assignment_stmt input_stmt output_stmt if_stmt while_stmt switch_stmt break_stmt stmt_block stmtlist caselist
 %type <gsval> boolfactor
 %type <gsval> boolterm
 %type <gsval> boolexpr
 
-%nterm <caselist_struct> caselist1
+
 
  
 %define parse.error verbose
@@ -342,13 +342,13 @@ output_stmt:	OUTPUT '(' expression ')' ';' {
     if(($3).type == INTEGER_TYPE) {
       GString* line_string = g_string_new(NULL);
       g_string_append_printf(line_string, "%s%s", "IPRT ", ($3).vtext->str);
-      insert_line(buffer, current_line, line_string);
+      buffer = insert_line(buffer, current_line, line_string);
       try_to_free_g_string(line_string, FALSE);
     }
     else {
       GString* line_string = g_string_new(NULL);
       g_string_append_printf(line_string, "%s%s", "RPRT ", ($3).vtext->str);
-      insert_line(buffer, current_line, line_string);
+      buffer = insert_line(buffer, current_line, line_string);
       try_to_free_g_string(line_string, FALSE);
     }
     current_line++;
@@ -359,69 +359,65 @@ output_stmt:	OUTPUT '(' expression ')' ';' {
 
 if_stmt:	IF '(' boolexpr ')'
 {
-  fprintf(stderr, "hello5");
-  Element e1;
-  Element e2;
-  Element e3;
-  e1.type = STRING;
-  e2.type = LABEL;
-  e3.type = STRING;
-  e1.data.s = g_string_new(NULL);
-  e3.data.s = g_string_new(NULL);
-  g_string_append_printf(e1.data.s, "%s ", "JMPZ");
-  e2.data.l = label_count;
+  fprintf(stderr, "$3_%s", $3->str);
+  GString* e1;
+  GString* e2;
+  GString* e3;
+  e1 = g_string_new(NULL);
+  e2 = g_string_new(NULL);
+  e3 = g_string_new(NULL);
+  g_string_append_printf(e1, "%s ", "JMPZ");
+  g_string_append_printf(e2, "%d ", label_count);
   label_count++;
-  g_string_append_printf(e3.data.s, " %s", $3->str);
-  insert_element(buffer, current_line, 0, e1);
-  insert_element(buffer, current_line, 1, e2);
-  insert_element(buffer, current_line, 2, e3);
+  g_string_append_printf(e3, "%s", $3->str);
+  buffer = insert_element(buffer, current_line, 0, e1);
+  buffer = insert_element(buffer, current_line, 1, e2);
+  buffer = insert_element(buffer, current_line, 2, e3);
   $1 = current_line;
   current_line++;
 }
 stmt ELSE
 {
-  Element e1;
-  Element e2;
-  e1.type = STRING;
-  e2.type = LABEL;
-  e1.data.s = g_string_new(NULL);
-  g_string_append_printf(e1.data.s, "%s ", "JUMP");
-  e2.data.l = label_count;
+  GString* e1;
+  GString* e2;
+  e1 = g_string_new(NULL);
+  e2 = g_string_new(NULL);
+  g_string_append_printf(e1, "%s ", "JUMP");
+  g_string_append_printf(e2, "%d ", label_count);
   label_count++;
-  insert_element(buffer, current_line, 0, e1);
-  insert_element(buffer, current_line, 1, e2);
+  buffer = insert_element(buffer, current_line, 0, e1);
+  buffer = insert_element(buffer, current_line, 1, e2);
   $7 = current_line;
   current_line++;
 
-  Element e3;
-  e3.type = LABEL;
-  e3.data.l = current_line;
+  GString* e3;
+  e3 = g_string_new(NULL);
+  g_string_append_printf(e3, "%d ", current_line + 1);
   set_element(buffer, $1, 1, e3);
 }
 stmt
 {
-  Element e;
-  e.type = LABEL;
-  e.data.l = current_line;
+  GString* e;
+  e = g_string_new(NULL);
+  g_string_append_printf(e, "%d ", current_line + 1);
   set_element(buffer, $7, 1, e);
 
   try_to_free_g_string($3, FALSE);
+  $$.break_lines_list = g_list_concat(($6).break_lines_list, ($9).break_lines_list);
 };
 
 while_stmt:		WHILE '(' boolexpr ')'
 {
-  Element e1;
-  Element e2;
-  Element e3;
-  e1.type = STRING;
-  e2.type = LABEL;
-  e3.type = STRING;
-  e1.data.s = g_string_new(NULL);
-  e3.data.s = g_string_new(NULL);
-  g_string_append_printf(e1.data.s, "%s ", "JMPZ");
-  e2.data.l = label_count;
+  GString* e1;
+  GString* e2;
+  GString* e3;
+  e1 = g_string_new(NULL);
+  e2 = g_string_new(NULL);
+  e3 = g_string_new(NULL);
+  g_string_append_printf(e1, "%s ", "JMPZ");
+  g_string_append_printf(e2, "%d ", label_count);
   label_count++;
-  g_string_append_printf(e3.data.s, " %s", $3->str);
+  g_string_append_printf(e3, " %s", $3->str);
   insert_element(buffer, current_line, 0, e1);
   insert_element(buffer, current_line, 1, e2);
   insert_element(buffer, current_line, 2, e3);
@@ -436,9 +432,9 @@ stmt
   try_to_free_g_string(line_string, FALSE);
   current_line++;
 
-  Element e;
-  e.type = LABEL;
-  e.data.l = current_line;
+  GString* e;
+  e = g_string_new(NULL);
+  g_string_append_printf(e, "%d", current_line);
   set_element(buffer, $1, 1, e);
 
   g_list_foreach(($6).break_lines_list, fix_break_lines, GINT_TO_POINTER(current_line));
@@ -456,9 +452,10 @@ switch_stmt:	SWITCH '(' expression ')' '{'
 caselist
 DEFAULT ':' stmtlist '}' 
 {
-  g_list_foreach(($<caselist_struct>$).break_lines_list, fix_break_lines, GINT_TO_POINTER(current_line));
-  g_list_free(($<caselist_struct>$).break_lines_list);
+  g_list_foreach(($7).break_lines_list, fix_break_lines, GINT_TO_POINTER(current_line));
+  g_list_free(($7).break_lines_list);
   $$.break_lines_list = NULL;
+  ($7).break_lines_list = NULL;
 
   try_to_free_g_string(($3).vtext, TRUE);
   //free($3);
@@ -468,6 +465,7 @@ caselist:	caselist CASE NUM ':'
 {
   GString* temp_var_text = g_string_new(NULL);
   g_string_append_printf(temp_var_text, "_t%d", temp_var_count);
+  fprintf(stderr, "temp_var_text_%d\n", temp_var_count);
   temp_var_count++;
   if(($<caselist_struct>0).type == INTEGER_TYPE) {
     GString* line_string = g_string_new(NULL);
@@ -482,18 +480,17 @@ caselist:	caselist CASE NUM ':'
     try_to_free_g_string(line_string, FALSE);
   }
 
-  Element e1;
-  Element e2;
-  Element e3;
-  e1.type = STRING;
-  e2.type = LABEL;
-  e3.type = STRING;
-  e1.data.s = g_string_new(NULL);
-  e3.data.s = g_string_new(NULL);
-  g_string_append_printf(e1.data.s, "%s ", "JMPZ");
-  e2.data.l = label_count;
+  GString* e1;
+  GString* e2;
+  GString* e3;
+  e1 = g_string_new(NULL);
+  e2 = g_string_new(NULL);
+  e3 = g_string_new(NULL);
+  g_string_append_printf(e1, "%s ", "JMPZ");
+  g_string_append_printf(e2, "%d ", label_count);
   label_count++;
-  g_string_append_printf(e3.data.s, " %s", temp_var_text->str);
+  g_string_append_printf(e3, " %s", temp_var_text->str);
+  fprintf(stderr, "temp_var_text_%s\n", temp_var_text->str);
   insert_element(buffer, current_line, 0, e1);
   insert_element(buffer, current_line, 1, e2);
   insert_element(buffer, current_line, 2, e3);
@@ -504,30 +501,29 @@ caselist:	caselist CASE NUM ':'
 stmtlist
 
 {
-  Element e;
-  e.type = LABEL;
-  e.data.l = current_line;
+  GString* e;
+  e = g_string_new(NULL);
+  g_string_append_printf(e, "%d", current_line);
   set_element(buffer, $2, 1, e);
 
-  ($<caselist_struct>0).break_lines_list = g_list_concat(($<caselist_struct>$).break_lines_list, ($6).break_lines_list);
+  fprintf(stderr, "wtf");
+  fprintf(stderr, "fuck%d\n", GPOINTER_TO_INT(g_list_first(($1).break_lines_list)->data));
+  ($$).break_lines_list = g_list_concat(($1).break_lines_list, ($6).break_lines_list);
 };
 
 caselist: 
 {
-  ($<caselist_struct>0).break_lines_list = NULL;
+  ($$).break_lines_list = NULL;
 };
-
-caselist1: 
 
 break_stmt:		BREAK ';'
 {
-  Element e1;
-  Element e2;
-  e1.type = STRING;
-  e2.type = LABEL;
-  e1.data.s = g_string_new(NULL);
-  g_string_append_printf(e1.data.s, "%s ", "JUMP");
-  e2.data.l = label_count;
+  GString* e1;
+  GString* e2;
+  e1 = g_string_new(NULL);
+  e2 = g_string_new(NULL);
+  g_string_append_printf(e1, "%s ", "JUMP");
+  g_string_append_printf(e2, "%d ", label_count);
   label_count++;
   insert_element(buffer, current_line, 0, e1);
   insert_element(buffer, current_line, 1, e2);
@@ -574,7 +570,8 @@ boolterm:	boolterm AND boolfactor {
   temp_var_count++;
   GString* line_string = g_string_new(NULL);
   g_string_append_printf(line_string, "%s %s %s %s", "IMLT", $$->str, $1->str, $3->str);
-  insert_line(buffer, current_line++, line_string);
+  insert_line(buffer, current_line, line_string);
+  current_line++;
   try_to_free_g_string(line_string, FALSE);
   try_to_free_g_string($1, FALSE);
   try_to_free_g_string($3, FALSE);
@@ -589,8 +586,9 @@ boolfactor:		NOT '(' boolexpr ')' {
   g_string_append_printf($$, "_t%d", temp_var_count);
   temp_var_count++;
   GString* line_string = g_string_new(NULL);
-  g_string_append_printf(line_string, "%s %s %s %s", "ILSS", $$->str, $3->str, "1");
-  insert_line(buffer, current_line++, line_string);
+  g_string_append_printf(line_string, "%s %s %s %s", "ILSS", $$->str, "1", $3->str);
+  insert_line(buffer, current_line, line_string);
+  current_line++;
   try_to_free_g_string(line_string, FALSE);
   try_to_free_g_string($3, FALSE);
 };
@@ -614,11 +612,13 @@ boolfactor: expression RELOP expression {
         case LT_TYPE:
             
             g_string_append_printf(line_string, "%s %s %s %s", "ILSS", $$->str, ($1).vtext->str, ($3).vtext->str);
-            insert_line(buffer, current_line++, line_string);
+            insert_line(buffer, current_line, line_string);
+            current_line++;
             break;
         case GT_TYPE:
             g_string_append_printf(line_string, "%s %s %s %s", "IGRT", $$->str, ($1).vtext->str, ($3).vtext->str);
-            insert_line(buffer, current_line++, line_string);
+            insert_line(buffer, current_line, line_string);
+            current_line++;
             break;
         case LE_TYPE:
             /*
@@ -634,9 +634,12 @@ boolfactor: expression RELOP expression {
             g_string_append_printf(line_string1, "%s %s %s %s", "ILSS", temp1->str, ($1).vtext->str, ($3).vtext->str);
             g_string_append_printf(line_string2, "%s %s %s %s", "IEQL", temp2->str, ($1).vtext->str, ($3).vtext->str);
             g_string_append_printf(line_string3, "%s %s %s %s", "IADD", $$->str, temp1->str, temp2->str);
-            insert_line(buffer, current_line++, line_string1);
-            insert_line(buffer, current_line++, line_string2);
-            insert_line(buffer, current_line++, line_string3);
+            insert_line(buffer, current_line, line_string1);
+            current_line++;
+            insert_line(buffer, current_line, line_string2);
+            current_line++;
+            insert_line(buffer, current_line, line_string3);
+            current_line++;
             try_to_free_g_string(line_string1, FALSE);
             try_to_free_g_string(line_string2, FALSE);
             try_to_free_g_string(line_string3, FALSE);
@@ -655,21 +658,26 @@ boolfactor: expression RELOP expression {
             g_string_append_printf(line_string1, "%s %s %s %s", "IGRT", temp1->str, ($1).vtext->str, ($3).vtext->str);
             g_string_append_printf(line_string2, "%s %s %s %s", "IEQL", temp2->str, ($1).vtext->str, ($3).vtext->str);
             g_string_append_printf(line_string3, "%s %s %s %s", "IADD", $$->str, temp1->str, temp2->str);
-            insert_line(buffer, current_line++, line_string1);
-            insert_line(buffer, current_line++, line_string2);
-            insert_line(buffer, current_line++, line_string3);
+            insert_line(buffer, current_line, line_string1);
+            current_line++;
+            insert_line(buffer, current_line, line_string2);
+            current_line++;
+            insert_line(buffer, current_line, line_string3);
+            current_line++;
             try_to_free_g_string(line_string1, FALSE);
             try_to_free_g_string(line_string2, FALSE);
             try_to_free_g_string(line_string3, FALSE);
             break;
         case NEQ_TYPE:
             g_string_append_printf(line_string, "%s %s %s %s", "INQL", $$->str, ($1).vtext->str, ($3).vtext->str);
-            insert_line(buffer, current_line++, line_string);
+            insert_line(buffer, current_line, line_string);
+            current_line++;
             try_to_free_g_string(line_string, FALSE);
             break;
         case EQ_TYPE:
             g_string_append_printf(line_string, "%s %s %s %s", "IEQL", $$->str, ($1).vtext->str, ($3).vtext->str);
-            insert_line(buffer, current_line++, line_string);
+            insert_line(buffer, current_line, line_string);
+            current_line++;
             try_to_free_g_string(line_string, FALSE);
             break;
         default:
@@ -700,12 +708,14 @@ boolfactor: expression RELOP expression {
       switch ($2) {
         case LT_TYPE:
             g_string_append_printf(line_string, "%s %s %s %s", "ILSS", $$->str, string_op1->str, string_op2->str);
-            insert_line(buffer, current_line++, line_string);
+            insert_line(buffer, current_line, line_string);
+            current_line++;
             try_to_free_g_string(line_string, FALSE);
             break;
         case GT_TYPE:
             g_string_append_printf(line_string, "%s %s %s %s", "IGRT", $$->str, string_op1->str, string_op2->str);
-            insert_line(buffer, current_line++, line_string);
+            insert_line(buffer, current_line, line_string);
+            current_line++;
             try_to_free_g_string(line_string, FALSE);
             break;
         case LE_TYPE:
@@ -722,9 +732,12 @@ boolfactor: expression RELOP expression {
             g_string_append_printf(line_string1, "%s %s %s %s", "ILSS", temp1->str, string_op1->str, string_op2->str);
             g_string_append_printf(line_string2, "%s %s %s %s", "IEQL", temp2->str, string_op1->str, string_op2->str);
             g_string_append_printf(line_string3, "%s %s %s %s", "IADD", $$->str, temp1->str, temp2->str);
-            insert_line(buffer, current_line++, line_string1);
-            insert_line(buffer, current_line++, line_string2);
-            insert_line(buffer, current_line++, line_string3);
+            insert_line(buffer, current_line, line_string1);
+            current_line++;
+            insert_line(buffer, current_line, line_string2);
+            current_line++;
+            insert_line(buffer, current_line, line_string3);
+            current_line++;
             try_to_free_g_string(line_string1, FALSE);
             try_to_free_g_string(line_string2, FALSE);
             try_to_free_g_string(line_string3, FALSE);
@@ -743,21 +756,26 @@ boolfactor: expression RELOP expression {
             g_string_append_printf(line_string1, "%s %s %s %s", "IGRT", temp1->str, string_op1->str, string_op2->str);
             g_string_append_printf(line_string2, "%s %s %s %s", "IEQL", temp2->str, string_op1->str, string_op2->str);
             g_string_append_printf(line_string3, "%s %s %s %s", "IADD", $$->str, temp1->str, temp2->str);
-            insert_line(buffer, current_line++, line_string1);
-            insert_line(buffer, current_line++, line_string2);
-            insert_line(buffer, current_line++, line_string3);
+            insert_line(buffer, current_line, line_string1);
+            current_line++;
+            insert_line(buffer, current_line, line_string2);
+            current_line++;
+            insert_line(buffer, current_line, line_string3);
+            current_line++;
             try_to_free_g_string(line_string1, FALSE);
             try_to_free_g_string(line_string2, FALSE);
             try_to_free_g_string(line_string3, FALSE);
             break;
         case NEQ_TYPE:
             g_string_append_printf(line_string, "%s %s %s %s", "INQL", $$->str, string_op1->str, string_op2->str);
-            insert_line(buffer, current_line++, line_string);
+            insert_line(buffer, current_line, line_string);
+            current_line++;
             try_to_free_g_string(line_string, FALSE);
             break;
         case EQ_TYPE:
             g_string_append_printf(line_string, "%s %s %s %s", "IEQL", $$->str, string_op1->str, string_op2->str);
-            insert_line(buffer, current_line++, line_string);
+            insert_line(buffer, current_line, line_string);
+            current_line++;
             try_to_free_g_string(line_string, FALSE);
             break;
         default:
@@ -795,14 +813,16 @@ expression:		expression ADDOP term {
     if(($1).type == INTEGER_TYPE && ($3).type == INTEGER_TYPE) {
       GString* line_string = g_string_new(NULL);
       g_string_append_printf(line_string, "%s %s %s %s", "IADD", $$.vtext->str, ($1).vtext->str, ($3).vtext->str);
-      insert_line(buffer, current_line++, line_string);
+      insert_line(buffer, current_line, line_string);
+      current_line++;
       try_to_free_g_string(line_string, FALSE);
     }
     //case RADD
     else {
       GString* line_string = g_string_new(NULL);
       g_string_append_printf(line_string, "%s %s %s %s", "RADD", $$.vtext->str, ($1).vtext->str, ($3).vtext->str);
-      insert_line(buffer, current_line++, line_string);
+      insert_line(buffer, current_line, line_string);
+      current_line++;
       try_to_free_g_string(line_string, FALSE);
     }
   }
@@ -825,14 +845,16 @@ expression:		expression ADDOP term {
     if(($1).type == INTEGER_TYPE && ($3).type == INTEGER_TYPE) {
       GString* line_string = g_string_new(NULL);
       g_string_append_printf(line_string, "%s %s %s %s", "ISUB", $$.vtext->str, ($1).vtext->str, ($3).vtext->str);
-      insert_line(buffer, current_line++, line_string);
+      insert_line(buffer, current_line, line_string);
+      current_line++;
       try_to_free_g_string(line_string, FALSE);
     }
     //case RSUB
     else {
       GString* line_string = g_string_new(NULL);
       g_string_append_printf(line_string, "%s %s %s %s", "RSUB", $$.vtext->str, ($1).vtext->str, ($3).vtext->str);
-      insert_line(buffer, current_line++, line_string);
+      insert_line(buffer, current_line, line_string);
+      current_line++;
       try_to_free_g_string(line_string, FALSE);
     }
   }
@@ -878,14 +900,16 @@ term:	term MULOP factor {
     if(($1).type == INTEGER_TYPE && ($3).type == INTEGER_TYPE) {
       GString* line_string = g_string_new(NULL);
       g_string_append_printf(line_string, "%s %s %s %s", "IMLT", $$.vtext->str, ($1).vtext->str, ($3).vtext->str);
-      insert_line(buffer, current_line++, line_string);
+      insert_line(buffer, current_line, line_string);
+      current_line++;
       try_to_free_g_string(line_string, FALSE);
     }
     //case RMLT
     else {
       GString* line_string = g_string_new(NULL);
       g_string_append_printf(line_string, "%s %s %s %s", "RMLT", $$.vtext->str, ($1).vtext->str, ($3).vtext->str);
-      insert_line(buffer, current_line++, line_string);
+      insert_line(buffer, current_line, line_string);
+      current_line++;
       try_to_free_g_string(line_string, FALSE);
     }
   }
@@ -908,14 +932,16 @@ term:	term MULOP factor {
     if(($1).type == INTEGER_TYPE && ($3).type == INTEGER_TYPE) {
       GString* line_string = g_string_new(NULL);
       g_string_append_printf(line_string, "%s %s %s %s", "IDIV", $$.vtext->str, ($1).vtext->str, ($3).vtext->str);
-      insert_line(buffer, current_line++, line_string);
+      insert_line(buffer, current_line, line_string);
+      current_line++;
       try_to_free_g_string(line_string, FALSE);
     }
     //case RDIV
     else {
       GString* line_string = g_string_new(NULL);
       g_string_append_printf(line_string, "%s %s %s %s", "RDIV", $$.vtext->str, ($1).vtext->str, ($3).vtext->str);
-      insert_line(buffer, current_line++, line_string);
+      insert_line(buffer, current_line, line_string);
+      current_line++;
       try_to_free_g_string(line_string, FALSE);
     }
   }
@@ -960,7 +986,8 @@ factor:		CAST '(' expression ')' {
     $$.type = INTEGER_TYPE;
     GString* line_string = g_string_new(NULL);
     g_string_append_printf(line_string, "%s %s %s", "RTOI", $$.vtext->str, ($3).vtext->str);
-    insert_line(buffer, current_line++, line_string);
+    insert_line(buffer, current_line, line_string);
+    current_line++;
     try_to_free_g_string(line_string, FALSE);
   }
   //TODO: add ITOR
@@ -1055,7 +1082,7 @@ int main (int argc, char **argv)
   symbol_table = g_hash_table_new(g_str_hash, g_str_equal);
   buffer = create_buffer();
   //sprintf(input_file_name, "%s", argv[0]);
-  input_file_name = g_string_new((const gchar*)argv[0]);
+  input_file_name = g_string_new(argv[1]);
 
 
 #if 0
