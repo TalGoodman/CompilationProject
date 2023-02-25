@@ -3,7 +3,7 @@
 #include <glib.h>
 #include "outputlist.h"
 
-static GHashTable *symbol_table = NULL;
+GHashTable *symbol_table = NULL;
 GList* labels_list = NULL;
 
 Line* buffer = NULL;
@@ -19,20 +19,6 @@ int error_exists = 0;
 GString* input_file_name;
 
 
-
-struct Symbol {
-  int type;
-  union {
-    int int_value;
-    float float_value;
-  } value;
-};
-
-
-void symbol_free(gpointer key, gpointer value, gpointer userdata) {
-  free(value);
-}
-
 void fix_break_lines(gpointer data, gpointer user_data) {
   int line = GPOINTER_TO_INT(user_data);
   int break_line = GPOINTER_TO_INT(data);
@@ -45,9 +31,8 @@ void fix_break_lines(gpointer data, gpointer user_data) {
 
 int get_symbol_type(char* id){
   gconstpointer id_gconstpointer = (gconstpointer)id;
-  gpointer symbol_id = g_hash_table_lookup(symbol_table, id_gconstpointer);
-  struct Symbol *symbol = (struct Symbol*)symbol_id;
-  int symbol_type = symbol->type;
+  gint* symbol_type_ptr = g_hash_table_lookup(symbol_table, id_gconstpointer);
+  int symbol_type = GPOINTER_TO_INT(symbol_type_ptr);
   return symbol_type;
 }
 
@@ -219,14 +204,13 @@ declaration:	idlist ':' type ';' {
 	GList *list = symbols;
 	while (list != NULL) {
 		GString* current = g_string_new(list->data);
-		struct Symbol *symbol = malloc(sizeof(struct Symbol));
-		symbol->type = type_val;
-		g_hash_table_insert(symbol_table, current, symbol);
+    fprintf(stderr, "type_val:%d\n", type_val);
+		g_hash_table_insert(symbol_table, current->str, GINT_TO_POINTER(type_val));
 		list = g_list_next(list);
 	}
     //declaration_count++;
     //symbol_count = 0;
-	//symbols = NULL;
+	symbols = NULL;
 };
 
 type:	INT { $$ = INTEGER_TYPE; }; | FLOAT { $$ = FLOAT_TYPE; };
@@ -281,17 +265,27 @@ stmt:	stmt_block
 
 assignment_stmt:	ID '=' expression ';' 
 {
-  struct Symbol *symbol = g_hash_table_lookup(symbol_table, $1);
+  fprintf(stderr, "what1\n");
+  gint* symbol_type_ptr = g_hash_table_lookup(symbol_table, $1);
+  if(symbol_type_ptr == NULL){
+    fprintf(stderr, "ERROR ERROR\n");
+  }
+  int symbol_type = GPOINTER_TO_INT(symbol_type_ptr);
   int id_type;
   char* endptr;
+  fprintf(stderr, "what4\n");
+  fprintf(stderr, "symbol_type: %d\n", symbol_type);
   long expression_int_value = strtol(($3).vtext->str, &endptr, 10);
+  fprintf(stderr, "what5\n");
   double expression_double_value = (double)expression_int_value;
-  if(symbol -> type == INTEGER_TYPE) {
+  fprintf(stderr, "what6\n");
+  if(symbol_type == INTEGER_TYPE) {
     id_type = INTEGER_TYPE;
   }
-  else if(symbol -> type == FLOAT_TYPE) {
+  else if(symbol_type == FLOAT_TYPE) {
     id_type = FLOAT_TYPE;
   }
+  fprintf(stderr, "what2\n");
   //TODO: print errors
   if(id_type == FLOAT_TYPE && ($3).type == FLOAT_TYPE) {
       GString* line_string = g_string_new(NULL);
@@ -316,6 +310,7 @@ assignment_stmt:	ID '=' expression ';'
       insert_line(buffer, current_line++, line_string);
       try_to_free_g_string(line_string, FALSE);
   }
+  fprintf(stderr, "what3\n");
 
   try_to_free_g_string(($3).vtext, TRUE);
   //free($3);
@@ -417,31 +412,37 @@ while_stmt:		WHILE '(' boolexpr ')'
   g_string_append_printf(e1, "%s ", "JMPZ");
   g_string_append_printf(e2, "%d ", label_count);
   label_count++;
-  g_string_append_printf(e3, " %s", $3->str);
+  g_string_append_printf(e3, "%s", $3->str);
   insert_element(buffer, current_line, 0, e1);
   insert_element(buffer, current_line, 1, e2);
   insert_element(buffer, current_line, 2, e3);
   $1 = current_line;
   current_line++;
+  fprintf(stderr, "woot1\n");
 }
 stmt
 {
+  fprintf(stderr, "woot2\n");
   GString* line_string = g_string_new(NULL);
   g_string_append_printf(line_string, "%s %d", "JUMP", $1);
   insert_line(buffer, current_line, line_string);
   try_to_free_g_string(line_string, FALSE);
   current_line++;
 
+fprintf(stderr, "woot5\n");
   GString* e;
   e = g_string_new(NULL);
-  g_string_append_printf(e, "%d", current_line);
+  g_string_append_printf(e, "%d ", current_line + 1);
   set_element(buffer, $1, 1, e);
+  
+  fprintf(stderr, "woot3");
 
   g_list_foreach(($6).break_lines_list, fix_break_lines, GINT_TO_POINTER(current_line));
   g_list_free(($6).break_lines_list);
   $$.break_lines_list = NULL;
 
   try_to_free_g_string($3, FALSE);
+  fprintf(stderr, "woot4\n");
 };
 
 switch_stmt:	SWITCH '(' expression ')' '{' 
@@ -792,6 +793,7 @@ boolfactor: expression RELOP expression {
 
 expression:		expression ADDOP term {
   //$$ = (TextType*) malloc(sizeof(TextType));
+  $$.vtext = g_string_new(NULL);
   g_string_append_printf($$.vtext, "_t%d", temp_var_count);
   temp_var_count++;
   if($2 == ADD_TYPE) {
@@ -879,6 +881,7 @@ expression:   term {
 
 term:	term MULOP factor {
   //$$ = (TextType*) malloc(sizeof(TextType));
+  $$.vtext = g_string_new(NULL);
   g_string_append_printf($$.vtext, "_t%d", temp_var_count);
   temp_var_count++;
   if($2 == MUL_TYPE) {
@@ -980,6 +983,7 @@ factor:		'(' expression ')' {
 
 factor:		CAST '(' expression ')' {
   //$$ = (TextType*) malloc(sizeof(TextType));
+  $$.vtext = g_string_new(NULL);
   g_string_append_printf($$.vtext, "_t%d", temp_var_count);
   temp_var_count++;
   if($1 == CAST_INT_TYPE) {
@@ -998,11 +1002,12 @@ factor:		CAST '(' expression ')' {
 
 factor:		ID {
   //$$ = (TextType*) malloc(sizeof(TextType));
-  struct Symbol *symbol = g_hash_table_lookup(symbol_table, $1);
-  if(symbol -> type == INTEGER_TYPE) {
+  gint* symbol_type_ptr = g_hash_table_lookup(symbol_table, $1);
+  int symbol_type = GPOINTER_TO_INT(symbol_type_ptr);
+  if(symbol_type == INTEGER_TYPE) {
     $$.type = INTEGER_TYPE;
   }
-  else if(symbol -> type == FLOAT_TYPE) {
+  else if(symbol_type == FLOAT_TYPE) {
     $$.type = FLOAT_TYPE;
   }
   $$.vtext = g_string_new($1);
@@ -1094,8 +1099,7 @@ int main (int argc, char **argv)
   yyparse ();
   
   try_to_free_g_string(input_file_name, TRUE);
-  g_hash_table_foreach(symbol_table, symbol_free, NULL);
-  g_hash_table_destroy(symbol_table);
+  g_hash_table_unref(symbol_table);
   
   fclose (yyin);
   return 0;
