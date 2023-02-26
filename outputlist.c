@@ -16,16 +16,19 @@ Line* insert_element(Line* buffer, int line, int col, GString* e) {
     if(line_list == NULL){
         line_list = g_list_insert(line_list, element, 0);
         *buffer = g_list_insert(*buffer, line_list, line);
-        fprintf(stderr, "colsddsumn: %s\n", element->str);
     }
     else {
-        GList* temp_list = NULL;
+        GListLine* temp_list = NULL;
         for(GListElement* l = line_list->data; l != NULL; l = l->next){
             GString* temp_gstring = l->data;
             GString* e = g_string_new(temp_gstring->str);
             temp_list = g_list_append(temp_list, e);
+            g_string_free(temp_gstring, TRUE);
         }
-        *buffer = g_list_delete_link(*buffer, line_list);
+        *buffer = g_list_remove_link(*buffer, line_list);
+        //g_list_free_full(line_list, (GDestroyNotify)g_string_free);
+        g_list_free(line_list->data);
+        g_list_free(line_list);
         temp_list = g_list_insert(temp_list, element, col);
         *buffer = g_list_insert(*buffer, temp_list, line);
     }
@@ -57,6 +60,7 @@ void set_element(Line* buffer, int line, int col, GString* e) {
                 if(counter == col) {
                     if (element_list != NULL && element_list->data != NULL) {
                         //free string
+                        g_string_free(element_list->data, TRUE);
                         element_list->data = g_string_new(e->str);
                         
                     }
@@ -109,16 +113,37 @@ void delete_line(Line* buffer, int line) {
     *buffer = g_list_delete_link(*buffer, line_list);
 }*/
 
+void delete_buffer_aux1(GString* string) {
+    g_string_free(string, TRUE);
+}
+
+void delete_buffer_aux2(GList* list) {
+    g_list_free_full(g_steal_pointer (&list), (GDestroyNotify)delete_buffer_aux1);
+}
+
 //Delete buffer
 void delete_buffer(Line* buffer) {
+    /*
+    for (GListLine* line_list = *buffer; line_list != NULL; line_list = line_list->next) {
+        g_list_free_full(line_list->data, (GDestroyNotify)g_string_free);
+    }*/
+    //g_list_free_full(g_steal_pointer(buffer), (GDestroyNotify)delete_buffer_aux2);
+    //g_free(buffer);
+    
     for (GListLine* line_list = *buffer; line_list != NULL; line_list = line_list->next) {
         for (GListElement* element_list = line_list->data; element_list != NULL; element_list = element_list->next) {
             if (element_list->data != NULL) {
                 GString* element = element_list->data;
                 g_string_free(element, TRUE);
+                //element_list->data = GINT_TO_POINTER(1);
             }
         }
     }
+    for (GListLine* line_list = *buffer; line_list != NULL; line_list = line_list->next) {
+        g_list_free(line_list->data);
+    }
+    g_list_free(*buffer);
+    g_free(buffer);
 }
 
 void create_qud_file(Line* buffer, GString* file_name) {

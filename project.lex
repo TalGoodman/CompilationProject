@@ -16,9 +16,9 @@
 <STAR_COMMENT>. {}
 <STAR_COMMENT>"*/" {BEGIN(0);}
 
-[0-9]+     { yylval.sval = yytext; return NUM; }
+[0-9]+     { yylval.sval = strdup(yytext); return NUM; }
 
-[0-9]+'.'[0-9]* { yylval.sval = yytext; return NUM; }
+[0-9]+'.'[0-9]* { yylval.sval = strdup(yytext); return NUM; }
 
 "if"        {return IF;}
 "else"        {return ELSE;}
