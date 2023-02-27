@@ -1,6 +1,5 @@
 #include "outputlist.h"
 
-
 // Define a function to create a new buffer
 Line* create_buffer() {
     Line* buffer = g_new(Line, 1);
@@ -10,6 +9,9 @@ Line* create_buffer() {
 
 // Define a function to insert an element into the buffer
 Line* insert_element(Line* buffer, int line, int col, GString* e) {
+    if(error_exists == 1) {
+        return buffer;
+    }
     GString* element = g_string_new(e->str);
     GListLine* line_list = g_list_nth(*buffer, line);
     //GListElement* element_list;
@@ -39,6 +41,9 @@ Line* insert_element(Line* buffer, int line, int col, GString* e) {
 
 // Define a function to insert a line into the buffer
 Line* insert_line(Line* buffer, int line, const GString* text) {
+    if(error_exists == 1) {
+        return buffer;
+    }
     GListLine* line_list = g_list_nth(*buffer, line);
     //GListElement* elem_list = NULL;
     GString* elem;
@@ -50,6 +55,9 @@ Line* insert_line(Line* buffer, int line, const GString* text) {
 }
 
 void set_element(Line* buffer, int line, int col, GString* e) {
+    if(error_exists == 1) {
+        return;
+    }
     //insert_element(buffer, line, col, e);
     //GListLine* line_list = g_list_nth(*buffer, line);
     int line_counter = 0;
@@ -148,7 +156,7 @@ void delete_buffer(Line* buffer) {
 
 void create_qud_file(Line* buffer, GString* file_name) {
     //TODO: change to g_string_truncate(input_file_name, input_file_name->len - 3);
-    g_string_truncate(file_name, file_name->len - 4);
+    g_string_truncate(file_name, file_name->len - 3);
     g_string_append(file_name, ".qud");
     //fprintf(stderr, "%s", file_name->str);
     FILE* file = fopen(file_name->str, "w");
@@ -162,12 +170,9 @@ void create_qud_file(Line* buffer, GString* file_name) {
             if (element_list != NULL && element_list->data != NULL) {
                 GString* element = element_list->data;
                 fprintf(file, "%s", element->str);
-                if(element_list->next == NULL) {
+                if(element_list->next == NULL && line_list->next != NULL) {
                     fprintf(file, "\n");
                 }
-            }
-            else {
-                fprintf(file, "\n");
             }
         }
     }

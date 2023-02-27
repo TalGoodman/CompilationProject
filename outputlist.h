@@ -9,6 +9,8 @@ typedef GList GListLine;
 typedef GList GListElement;
 typedef GListElement* Line;
 
+int error_exists;
+
 
 
 Line* create_buffer();
