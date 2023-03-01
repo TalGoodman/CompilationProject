@@ -12,11 +12,10 @@ GList* current_break_lines_list;   //saves pointer to break_lines_list in order 
 
 int current_line = 0;   //the current line of the generated code
 int temp_var_count = 0;
-int label_count = 0;
 
 GString* input_file_name;
 
-
+//fixing the jump address/line in the generated code for the break lines
 void fix_break_lines(gpointer data, gpointer user_data) {
   int line = GPOINTER_TO_INT(user_data);
   int break_line = GPOINTER_TO_INT(data);
@@ -28,6 +27,8 @@ void fix_break_lines(gpointer data, gpointer user_data) {
   g_string_free(e, TRUE);
 }
 
+//returns the type of the symbol
+//1 is INTEGER, 2 is FLOAT, 3 is NO TYPE
 int get_symbol_type(char* id){
   gconstpointer id_gconstpointer = (gconstpointer)id;
   gint* symbol_type_ptr = g_hash_table_lookup(symbol_table, id_gconstpointer);
@@ -158,15 +159,18 @@ int get_symbol_type(char* id){
 
 %%
 program:	declarations stmt_block {
+  //add HALT line to the generated code
   GString* line_string = g_string_new(NULL);
   g_string_append_printf(line_string, "%s", "HALT");
   insert_line(buffer, current_line++, line_string);
+  //add sign line after HALT
   GString* sign_string = g_string_new("TAL GOODMAN");
   insert_line(buffer, current_line++, sign_string);
   g_string_free(line_string, TRUE);
   g_string_free(sign_string, TRUE);
 
   if(error_exists == 0){
+    //print the generated code to the output file
     create_qud_file(buffer, input_file_name);
   }
   delete_buffer(buffer);
@@ -177,6 +181,7 @@ declarations:	declarations declaration ;
 declarations: ;
 
 declaration:	idlist ':' type ';' {
+  //add the variables ofthe current declaration to symbol_table
   int type_val;
   type_val = $3;
 	GList *list = symbols;
@@ -185,6 +190,7 @@ declaration:	idlist ':' type ';' {
 		g_hash_table_insert(symbol_table, current, GINT_TO_POINTER(type_val));
 		list = g_list_next(list);
 	}
+  //free symbols, symbols temporarly hold the names of the variables in the current declarations
   g_list_free_full(symbols, free);
 	symbols = NULL;
 };
@@ -342,8 +348,7 @@ if_stmt:	IF '(' boolexpr ')'
   e2 = g_string_new(NULL);
   e3 = g_string_new(NULL);
   g_string_append_printf(e1, "%s ", "JMPZ");
-  g_string_append_printf(e2, "%d ", label_count);
-  label_count++;
+  g_string_append_printf(e2, "%d ", "-1");
   g_string_append_printf(e3, "%s", $3->str);
   buffer = insert_element(buffer, current_line, 0, e1);
   buffer = insert_element(buffer, current_line, 1, e2);
@@ -362,8 +367,7 @@ stmt ELSE
   e1 = g_string_new(NULL);
   e2 = g_string_new(NULL);
   g_string_append_printf(e1, "%s ", "JUMP");
-  g_string_append_printf(e2, "%d ", label_count);
-  label_count++;
+  g_string_append_printf(e2, "%d ", "-1");    //"-1" is a temporary value that should be replaced later
   buffer = insert_element(buffer, current_line, 0, e1);
   buffer = insert_element(buffer, current_line, 1, e2);
   g_string_free(e1, TRUE);
@@ -398,8 +402,7 @@ while_stmt:   WHILE { ($1).jump = current_line + 1; } '(' boolexpr ')'
   e2 = g_string_new(NULL);
   e3 = g_string_new(NULL);
   g_string_append_printf(e1, "%s ", "JMPZ");
-  g_string_append_printf(e2, "%d ", label_count);
-  label_count++;
+  g_string_append_printf(e2, "%d ", "-1");  //"-1" is a temporary value that should be replaced later
   g_string_append_printf(e3, "%s", $4->str);
   insert_element(buffer, current_line, 0, e1);
   insert_element(buffer, current_line, 1, e2);
@@ -473,8 +476,7 @@ caselist:	caselist CASE NUM ':'
   e2 = g_string_new(NULL);
   e3 = g_string_new(NULL);
   g_string_append_printf(e1, "%s ", "JMPZ");
-  g_string_append_printf(e2, "%d ", label_count);
-  label_count++;
+  g_string_append_printf(e2, "%d ", "-1");  //"-1" is a temporary value that should be replaced later
   g_string_append_printf(e3, "%s", temp_var_text->str);
   insert_element(buffer, current_line, 0, e1);
   insert_element(buffer, current_line, 1, e2);
@@ -514,8 +516,7 @@ break_stmt:		BREAK ';'
   e1 = g_string_new(NULL);
   e2 = g_string_new(NULL);
   g_string_append_printf(e1, "%s ", "JUMP");
-  g_string_append_printf(e2, "%d ", label_count);
-  label_count++;
+  g_string_append_printf(e2, "%d ", "-1");  //"-1" is a temporary value that should be replaced later
   insert_element(buffer, current_line, 0, e1);
   insert_element(buffer, current_line, 1, e2);
   $$.break_lines_list = NULL;
@@ -599,8 +600,8 @@ boolfactor: expression RELOP expression {
   GString* line_string3 = g_string_new(NULL);
   GString* temp1 = g_string_new(NULL);
   GString* temp2 = g_string_new(NULL);
-  GString* string_op1 = g_string_new(NULL);
-  GString* string_op2 = g_string_new(NULL);
+  GString* string_op1 = g_string_new(NULL);   //string of operand 1
+  GString* string_op2 = g_string_new(NULL);   //string of operand 2
   if(($1).type == INTEGER_TYPE && ($3).type == INTEGER_TYPE) {
       switch ($2) {
         case LT_TYPE:
@@ -1073,7 +1074,6 @@ factor:		CAST '(' expression ')' {
     g_string_append_printf(line_string, "%s %s %s", "RTOI", $$.vtext->str, ($3).vtext->str);
     insert_line(buffer, current_line++, line_string);
   }
-  //TODO: add ITOR
   else if($1 == CAST_FLOAT_TYPE && ($3).type == INTEGER_TYPE) {
     g_string_append_printf($$.vtext, "_t%d", temp_var_count);
     temp_var_count++;
@@ -1120,15 +1120,13 @@ factor:		NUM {
   char* endptr;
   long int_value = strtol($1, &endptr, 10);
   if (*endptr == '\0') {
-    /* NUM is an integer */
     $$.type = INTEGER_TYPE;
   } else {
     double float_value = strtod($1, &endptr);
     if (*endptr == '\0') {
-      /* NUM is a float */
       $$.type = FLOAT_TYPE;
     } else {
-      /* NUM is not a valid integer or float */
+      // NUM is not a valid integer or float
       yyerror("Invalid number");
     }
   }

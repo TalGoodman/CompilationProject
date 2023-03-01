@@ -9,7 +9,7 @@ typedef GList GListLine;
 typedef GList GListElement;
 typedef GListElement* Line;
 
-int error_exists;
+int error_exists;      //an indicatorfor error existence
 
 
 

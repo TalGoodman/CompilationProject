@@ -1,13 +1,13 @@
 #include "outputlist.h"
 
-// Define a function to create a new buffer
+//create a new buffer
 Line* create_buffer() {
     Line* buffer = g_new(Line, 1);
     *buffer = NULL;
     return buffer;
 }
 
-// Define a function to insert an element into the buffer
+//insert an element into the buffer
 Line* insert_element(Line* buffer, int line, int col, GString* e) {
     if(error_exists == 1) {
         return buffer;
@@ -35,7 +35,7 @@ Line* insert_element(Line* buffer, int line, int col, GString* e) {
     return buffer;
 }
 
-// Define a function to insert a line into the buffer
+//insert a line into the buffer
 Line* insert_line(Line* buffer, int line, const GString* text) {
     if(error_exists == 1) {
         return buffer;
@@ -48,6 +48,8 @@ Line* insert_line(Line* buffer, int line, const GString* text) {
     return buffer;
 }
 
+//set an element in the buffer
+//used for fixing jump and jmpz lines
 void set_element(Line* buffer, int line, int col, GString* e) {
     if(error_exists == 1) {
         return;
@@ -72,14 +74,6 @@ void set_element(Line* buffer, int line, int col, GString* e) {
     }
 }
 
-void delete_buffer_aux1(GString* string) {
-    g_string_free(string, TRUE);
-}
-
-void delete_buffer_aux2(GList* list) {
-    g_list_free_full(g_steal_pointer (&list), (GDestroyNotify)delete_buffer_aux1);
-}
-
 //Delete buffer
 void delete_buffer(Line* buffer) {
     for (GListLine* line_list = *buffer; line_list != NULL; line_list = line_list->next) {
@@ -97,6 +91,7 @@ void delete_buffer(Line* buffer) {
     g_free(buffer);
 }
 
+//create output file
 void create_qud_file(Line* buffer, GString* file_name) {
     g_string_truncate(file_name, file_name->len - 3);
     g_string_append(file_name, ".qud");
